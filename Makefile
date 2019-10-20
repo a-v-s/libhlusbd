@@ -96,6 +96,8 @@ C_SOURCES += $(CUBEF1_ROOT)/Drivers/CMSIS/Device/ST/STM32F1xx/Source/Templates/s
 C_SOURCES += main.c
 C_SOURCES += usbd_stm.c
 C_SOURCES += usbd.c
+C_SOURCES += usbd_descriptors.c
+
 
 # ASM sources
 ASM_SOURCES +=  $(CUBEF1_ROOT)/Drivers/CMSIS/Device/ST/STM32F1xx/Source/Templates/gcc/startup_stm32f103xb.s

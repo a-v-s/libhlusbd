@@ -11,15 +11,30 @@
 #include <stdlib.h>
 #include <stdint.h>
 
+struct usbd_handle_t;
+
+#include "usb_descriptors.h"
 
 typedef int (*usbd_transmit_f)(uint8_t ep, void* data, size_t size);
 typedef int (*usbd_set_address_f)(uint8_t address);
 
+#ifndef USBD_DESCRIPTOR_BUFFER_SIZE
+#define USBD_DESCRIPTOR_BUFFER_SIZE 512
+#endif
+
 
 typedef struct {
 	void*	device_specific;
+
 	usbd_transmit_f transmit;
 	usbd_set_address_f set_address;
+
+	uint8_t usbd_descriptor_buffer[USBD_DESCRIPTOR_BUFFER_SIZE];
+	size_t usbd_descriptor_buffer_offset;
+	usb_descriptor_device_t * descriptor_device;
+	usb_descriptor_configuration_t * descriptor_configuration;
+
+
 } usbd_handle_t;
 
 
@@ -120,6 +135,6 @@ typedef struct {
 #pragma pack(pop)
 
 int usbd_handle_standard_setup_request(usbd_handle_t *handle, usb_setuprequest_t *req);
-
+void usbd_setup_descriptors(usbd_handle_t *handle);
 
 #endif /* USBD_H_ */

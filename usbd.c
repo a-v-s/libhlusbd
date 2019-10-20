@@ -9,6 +9,52 @@
 //		* Create some "driver" structure with pointers to device specific functions
 //		* Create libopencm3-like callback mechanisms that allows overriding.
 #include "usbd.h"
+#include "usbd_descriptors.h"
+// This is a temporary function to test the dynamic descriptor setup,
+//
+void usbd_setup_descriptors(usbd_handle_t *handle) {
+	handle->descriptor_device = add_descriptor(handle, sizeof(usb_descriptor_device_t));
+	handle->descriptor_device->bDescriptorType = USB_DT_DEVICE;
+	handle->descriptor_device->bMaxPacketSize0 = 64;
+	handle->descriptor_device->bNumConfigurations = 1;
+	handle->descriptor_device->bcdUSB = 0x0100;
+	handle->descriptor_device->idVendor = 0xdead;
+	handle->descriptor_device->idProduct = 0xbeef;
+
+	handle->descriptor_configuration = add_descriptor(handle,
+			sizeof(usb_descriptor_configuration_t));
+	handle->descriptor_configuration->wTotalLength =
+			handle->descriptor_configuration->bLength;
+	handle->descriptor_configuration->bDescriptorType = USB_DT_CONFIGURATION;
+	handle->descriptor_configuration->bConfigurationValue = 1;
+	handle->descriptor_configuration->bMaxPower = 10;
+	handle->descriptor_configuration->bmAttributes = 0x80;
+	handle->descriptor_configuration->bNumInterfaces = 1;
+
+	usb_descriptor_interface_t *iface = add_descriptor(handle,
+			sizeof(usb_descriptor_configuration_t));
+	handle->descriptor_configuration->wTotalLength += iface->bLength;
+	iface->bDescriptorType = USB_DT_INTERFACE;
+	iface->bInterfaceProtocol = 0xff;
+	iface->bNumEndpoints = 2;
+	iface->bInterfaceNumber = 0;
+	iface->bAlternateSetting = 0;
+
+	usb_descriptor_endpoint_t *ep01 = add_descriptor(handle,
+			sizeof(usb_descriptor_endpoint_t));
+	handle->descriptor_configuration->wTotalLength += ep01->bLength;
+	usb_descriptor_endpoint_t *ep81 = add_descriptor(handle,
+			sizeof(usb_descriptor_endpoint_t));
+	handle->descriptor_configuration->wTotalLength += ep81->bLength;
+
+	ep01->bDescriptorType = ep81->bDescriptorType =
+	USB_DT_ENDPOINT;
+	ep01->bmAttributes = ep81->bmAttributes = 2;
+	ep01->wMaxPacketSize = ep81->wMaxPacketSize = 64;
+	ep81->bEndpointAddress = 0x81;
+	ep01->bEndpointAddress = 0x01;
+
+}
 
 int usbd_handle_standard_setup_request(usbd_handle_t *handle,
 		usb_setuprequest_t *req) {
@@ -34,66 +80,21 @@ int usbd_handle_standard_setup_request(usbd_handle_t *handle,
 		handle->transmit(0x00, NULL, 0);
 		break;
 	case USB_REQ_GET_DESCRIPTOR:
-		// Todo the abstraction, end up in usb_control_send_chunk()
-		// usb_control_send_chunk() is the libopencm3 version
 		switch (req->wValue >> 8) {
 		case USB_DT_DEVICE: {
-			// Just a little test... this makes no sense but
-			// at least should show up something, right?
-			static usb_descriptor_device_t test = { 0 };
-			test.bLength = sizeof(test);
-			test.bDescriptorType = USB_DT_DEVICE;
-			test.bMaxPacketSize0 = 64;
-			test.bNumConfigurations = 1;
-			test.bcdUSB = 0x0110;
-			test.idVendor = 0xdead;
-			test.idProduct = 0xbeef;
-			test.bDeviceClass = 0xff;
-			test.bDeviceProtocol = 0xff;
-			test.bDeviceSubClass = 0xff;
-			test.bcdDevice = 1;
-			handle->transmit(0x00, &test, test.bLength);
+			handle->transmit(0x00, handle->descriptor_device,
+					handle->descriptor_device->bLength);
 			return 0;
 		}
 		case USB_DT_CONFIGURATION: {
-#pragma pack(push,1)
-			static struct test {
-				usb_descriptor_configuration_t config;
-				usb_descriptor_interface_t iface;
-				usb_descriptor_endpoint_t ep[2];
-			} test = { 0 };
-#pragma pack(pop)
-			test.config.wTotalLength = sizeof(test);
-			test.config.bLength = sizeof(test.config);
-			test.config.bDescriptorType = USB_DT_CONFIGURATION;
-			test.config.bConfigurationValue = 1;
-			test.config.bMaxPower = 10;
-			test.config.bmAttributes = 0x80;
-			test.config.bNumInterfaces = 1;
-
-			test.iface.bLength = sizeof(test.iface);
-			test.iface.bDescriptorType = USB_DT_INTERFACE;
-			test.iface.bInterfaceProtocol = 0xff;
-			test.iface.bNumEndpoints = 2;
-			test.iface.bInterfaceNumber = 0;
-			test.iface.bAlternateSetting = 0;
-
-			test.ep[0].bLength = test.ep[1].bLength = sizeof(test.ep[0]);
-			test.ep[0].bDescriptorType = test.ep[1].bDescriptorType =
-					USB_DT_ENDPOINT;
-			test.ep[0].bmAttributes = test.ep[1].bmAttributes = 2;
-			test.ep[0].wMaxPacketSize = test.ep[1].wMaxPacketSize = 64;
-			test.ep[0].bEndpointAddress = 0x81;
-			test.ep[1].bEndpointAddress = 0x01;
-
+					// Do we still have to do the truncate thing?
 			size_t size =
-					(req->wLength < test.config.wTotalLength) ?
-							req->wLength : test.config.wTotalLength;
+					(req->wLength
+							< handle->descriptor_configuration->wTotalLength) ?
+							req->wLength :
+							handle->descriptor_configuration->wTotalLength;
+			handle->transmit(0x00, handle->descriptor_configuration, size);
 
-			// What happens if we truncate?
-			handle->transmit(0x00, &test, size);
-			// It wants me to answer only 9 ???
-			//handle->transmit(0x00,&test, 9);
 			return 0;
 		}
 			break;
@@ -111,7 +112,6 @@ int usbd_handle_standard_setup_request(usbd_handle_t *handle,
 			break;
 		}
 
-			//handle->transmit(); //// EP, DATA, SIZE
 		}
 		break;
 	case USB_REQ_SET_DESCRIPTOR:

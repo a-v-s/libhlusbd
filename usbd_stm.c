@@ -7,8 +7,13 @@ static PCD_HandleTypeDef m_pcd_handle;
 static usbd_handle_t m_usbd_handle = {.transmit = &usbd_stm32_transmit, .set_address=&usbd_stm32_set_address};
 
 
+
+
+
 usbd_handle_t* usbd_init() {
 	GPIO_InitTypeDef GPIO_InitStruct;
+
+	usbd_setup_descriptors(&m_usbd_handle);
 
 	__HAL_RCC_GPIOA_CLK_ENABLE();
 	__HAL_RCC_USB_CLK_ENABLE();
