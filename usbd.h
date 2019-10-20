@@ -15,13 +15,34 @@ struct usbd_handle_t;
 
 #include "usb_descriptors.h"
 
+
+
 typedef int (*usbd_transmit_f)(uint8_t ep, void* data, size_t size);
 typedef int (*usbd_set_address_f)(uint8_t address);
+typedef void (*usbd_transfer_cb_f)(struct usbd_handle_t *handle,uint8_t ep, void* data, size_t size);
 
 #ifndef USBD_DESCRIPTOR_BUFFER_SIZE
 #define USBD_DESCRIPTOR_BUFFER_SIZE 512
 #endif
 
+#ifndef USBD_ENDPOINTS_IN
+#define USBD_ENDPOINTS_IN 8
+#endif
+
+#ifndef USBD_ENDPOINTS_OUT
+#define USBD_ENDPOINTS_OUT 8
+#endif
+
+#ifndef USBD_CONFIGURATION_COUNT
+#define USBD_CONFIGURATION_COUNT 1
+#endif
+
+
+typedef struct {
+	void* buffer;
+	size_t size;
+	usbd_transfer_cb_f cb;
+} usbd_endpoint_t;
 
 typedef struct {
 	void*	device_specific;
@@ -32,8 +53,12 @@ typedef struct {
 	uint8_t usbd_descriptor_buffer[USBD_DESCRIPTOR_BUFFER_SIZE];
 	size_t usbd_descriptor_buffer_offset;
 	usb_descriptor_device_t * descriptor_device;
-	usb_descriptor_configuration_t * descriptor_configuration;
+	usb_descriptor_configuration_t * descriptor_configuration[USBD_CONFIGURATION_COUNT];
 
+	usbd_endpoint_t ep_in[USBD_ENDPOINTS_IN];
+	usbd_endpoint_t ep_out[USBD_ENDPOINTS_OUT];
+
+	uint8_t configuration;
 
 } usbd_handle_t;
 
