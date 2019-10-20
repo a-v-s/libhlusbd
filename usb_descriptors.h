@@ -68,4 +68,22 @@ typedef struct {
 	};
 } usb_descriptor_string_t;
 
+typedef struct {
+	uint8_t bLength;
+	uint8_t bDescriptorType;
+	uint8_t bFirstInterface;
+	uint8_t bInterfaceCount;
+	uint8_t bFunctionClass;
+	uint8_t bFunctionSubClass;
+	uint8_t bFunctionProtocol;
+	uint8_t iFunction;
+} usbd_descriptor_iad_t;
+
+typedef struct {
+	uint8_t bLength;
+	uint8_t bDescriptorType;
+	uint16_t wTotalLength;
+	uint8_t bNumDeviceCaps;
+} usbd_descriptor_bos_t;
+
 #endif /* USB_DESCRIPTORS_H_ */
