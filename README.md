@@ -1,5 +1,6 @@
 # stm32usb
-A BSD-licensed replacement for the STM32 USBD Middleware
+
+WARNING: This is pre-alpha / proof of concept level code.
 
 The STM32Core* repositories have been released under a BSD license.
 However, some parts such as the USB Middleware are under a SLA0044
