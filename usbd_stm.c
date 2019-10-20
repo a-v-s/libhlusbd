@@ -8,7 +8,7 @@ static usbd_handle_t m_usbd_handle = {.transmit = &usbd_stm32_transmit, .set_add
 
 
 
-
+uint8_t test_buffer[64];
 
 usbd_handle_t* usbd_init() {
 	GPIO_InitTypeDef GPIO_InitStruct;
@@ -62,9 +62,17 @@ usbd_handle_t* usbd_init() {
 	HAL_PCD_Init(&m_pcd_handle);
 
 	// This needs to be adjusted
-	HAL_PCDEx_PMAConfig(&m_pcd_handle, 0x00, PCD_SNG_BUF, 0x18);
-	HAL_PCDEx_PMAConfig(&m_pcd_handle, 0x80, PCD_SNG_BUF, 0x58);
-	HAL_PCDEx_PMAConfig(&m_pcd_handle, 0x81, PCD_SNG_BUF, 0x100);
+	int pma_buffer_pos = 0x18;
+	HAL_PCDEx_PMAConfig(&m_pcd_handle, 0x00, PCD_SNG_BUF, pma_buffer_pos);
+	pma_buffer_pos += 0x40;
+	HAL_PCDEx_PMAConfig(&m_pcd_handle, 0x80, PCD_SNG_BUF, pma_buffer_pos);
+	pma_buffer_pos += 0x40;
+	HAL_PCDEx_PMAConfig(&m_pcd_handle, 0x01, PCD_SNG_BUF, pma_buffer_pos);
+	pma_buffer_pos += 0x40;
+	HAL_PCDEx_PMAConfig(&m_pcd_handle, 0x81, PCD_SNG_BUF, pma_buffer_pos);
+
+	// Is HAL_PCD_EP_Receive a PrepareReceive function?
+	HAL_PCD_EP_Receive(&m_pcd_handle, 0x01, test_buffer, 64);
 
 
 	return &m_usbd_handle;
@@ -79,16 +87,33 @@ void HAL_PCD_SetupStageCallback(PCD_HandleTypeDef *hpcd) {
 }
 
 void HAL_PCD_DataOutStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
+	// Reception Complete Callback
 	// TODO
-	//USBD_LL_DataOutStage((USBD_HandleTypeDef*)hpcd->pData, epnum, hpcd->OUT_ep[epnum].xfer_buff);
+	size_t received_amount = HAL_PCD_EP_GetRxCount(hpcd, epnum);
+	if ((epnum & 0x7F) == 0x00) {
+		// Setup
+	} else {
+
+		// So, the HAL_PCD_EP_Receive is a PrepareReceive function
+		HAL_PCD_EP_Receive(hpcd,epnum,test_buffer,64);
+		int i = 1;
+		// Increase and return
+		test_buffer[0]++;
+		HAL_PCD_EP_Transmit(hpcd, 0x80|epnum, test_buffer,received_amount);
+
+	}
 }
 
 void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
+	// Transmission Complete Callback
 	// TODO
-	//USBD_LL_DataInStage((USBD_HandleTypeDef*)hpcd->pData, epnum, hpcd->IN_ep[epnum].xfer_buff);
-
-	HAL_PCD_EP_SetStall(hpcd, 0x80);
-	HAL_PCD_EP_Receive(hpcd, 0x00, NULL, 0);
+	if ((epnum & 0x7F) == 0x00) {
+		// Setup
+		HAL_PCD_EP_SetStall(hpcd, 0x80);
+		HAL_PCD_EP_Receive(hpcd, 0x00, NULL, 0);
+	} else {
+		// Data
+	}
 
 }
 void HAL_PCD_SOFCallback(PCD_HandleTypeDef *hpcd) {
@@ -103,15 +128,33 @@ void HAL_PCD_ResetCallback(PCD_HandleTypeDef *hpcd) {
 
 
 	// Open EP0 OUT
-	HAL_PCD_EP_Open(hpcd, 0x00U, 64, 0x00);
+	HAL_PCD_EP_Open(hpcd, 0x00, 64, 0x00);
 	HAL_PCD_EP_Flush(hpcd,0x00);
 	HAL_PCD_EP_ClrStall(hpcd, 0x00);
 
 
 	// Open EP0 IN
-	HAL_PCD_EP_Open(hpcd, 0x80U, 64, 0x00);
+	HAL_PCD_EP_Open(hpcd, 0x80, 64, 0x00);
 	HAL_PCD_EP_Flush(hpcd,0x80);
 	HAL_PCD_EP_ClrStall(hpcd, 0x80);
+
+
+	// For now, open the endpoints here
+	// This should be moved to the SET_CONFIGURATION call
+
+	// Open EP1 OUT
+	HAL_PCD_EP_Open(hpcd, 0x01, 64, 0x00);
+	HAL_PCD_EP_Flush(hpcd,0x01);
+	HAL_PCD_EP_ClrStall(hpcd, 0x01);
+
+
+	// Open EP1 IN
+	HAL_PCD_EP_Open(hpcd, 0x81, 64, 0x00);
+	HAL_PCD_EP_Flush(hpcd,0x81);
+	HAL_PCD_EP_ClrStall(hpcd, 0x81);
+
+
+
 
 }
 

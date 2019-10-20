@@ -120,7 +120,11 @@ int usbd_handle_standard_setup_request(usbd_handle_t *handle,
 		break;
 	case USB_REQ_SET_CONFIGURATION:
 		// No configuration support yet
+		// TODO open the endpoints
+
 		// Just send an ack
+
+
 		handle->transmit(0x00, NULL, 0);
 		break;
 	case USB_REQ_GET_INTERFACE:
