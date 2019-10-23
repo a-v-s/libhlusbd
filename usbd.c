@@ -8,8 +8,14 @@
 // TODO:
 //		* Create some "driver" structure with pointers to device specific functions
 //		* Create libopencm3-like callback mechanisms that allows overriding.
+//		* String Support: Import UniCodeConversions / Maybe create a SimpleAscii too
+//	Configuration/Initialisation : Create "Classes" Support to compose devices
 #include "usbd.h"
 #include "usbd_descriptors.h"
+
+// Unicode
+#include "ConvertUTF/ConvertUTF.h"
+
 
 // Some temprary stuff to test buffers and callbacks
 uint8_t temp_recv_buffer[64];
@@ -31,7 +37,7 @@ void usbd_add_endpoint_in(usbd_handle_t *handle, uint8_t config, uint8_t epnum,
 
 	usb_descriptor_endpoint_t *ep = add_descriptor(handle,
 			sizeof(usb_descriptor_endpoint_t));
-	handle->descriptor_configuration[config-1]->wTotalLength += ep->bLength;
+	handle->descriptor_configuration[config - 1]->wTotalLength += ep->bLength;
 
 	ep->bDescriptorType = USB_DT_ENDPOINT;
 	ep->bmAttributes = 2;
@@ -42,8 +48,8 @@ void usbd_add_endpoint_in(usbd_handle_t *handle, uint8_t config, uint8_t epnum,
 
 }
 
-void usbd_add_endpoint_out(usbd_handle_t *handle,uint8_t config, uint8_t epnum, void *buffer,
-		size_t size, usbd_transfer_cb_f cb) {
+void usbd_add_endpoint_out(usbd_handle_t *handle, uint8_t config, uint8_t epnum,
+		void *buffer, size_t size, usbd_transfer_cb_f cb) {
 	// TODO Multi Configuration Support
 	// TODO Range checking
 	// TODO Endpoint type
@@ -51,7 +57,7 @@ void usbd_add_endpoint_out(usbd_handle_t *handle,uint8_t config, uint8_t epnum, 
 
 	usb_descriptor_endpoint_t *ep = add_descriptor(handle,
 			sizeof(usb_descriptor_endpoint_t));
-	handle->descriptor_configuration[config-1]->wTotalLength += ep->bLength;
+	handle->descriptor_configuration[config - 1]->wTotalLength += ep->bLength;
 
 	ep->bDescriptorType = USB_DT_ENDPOINT;
 	ep->bmAttributes = 2;
@@ -63,7 +69,7 @@ void usbd_add_endpoint_out(usbd_handle_t *handle,uint8_t config, uint8_t epnum, 
 	handle->ep_out[0x7F & epnum].cb = cb;
 
 }
-void usbd_setup_descriptors(usbd_handle_t *handle) {
+void usbd_demo_setup_descriptors(usbd_handle_t *handle) {
 	handle->descriptor_device = add_descriptor(handle,
 			sizeof(usb_descriptor_device_t));
 	handle->descriptor_device->bDescriptorType = USB_DT_DEVICE;
@@ -72,6 +78,10 @@ void usbd_setup_descriptors(usbd_handle_t *handle) {
 	handle->descriptor_device->bcdUSB = 0x0100;
 	handle->descriptor_device->idVendor = 0xdead;
 	handle->descriptor_device->idProduct = 0xbeef;
+
+	handle->descriptor_device->iManufacturer = 1;
+	handle->descriptor_device->iProduct = 2;
+
 
 	handle->descriptor_configuration[0] = add_descriptor(handle,
 			sizeof(usb_descriptor_configuration_t));
@@ -92,14 +102,21 @@ void usbd_setup_descriptors(usbd_handle_t *handle) {
 	iface->bInterfaceNumber = 0;
 	iface->bAlternateSetting = 0;
 
-	usbd_add_endpoint_in(handle, 1,1, &transfer_in_complete);
+	usbd_add_endpoint_in(handle, 1, 1,
+			(usbd_transfer_cb_f) &transfer_in_complete);
 	usbd_add_endpoint_out(handle, 1, 1, temp_recv_buffer, 64,
-			&transfer_out_complete);
+			(usbd_transfer_cb_f) &transfer_out_complete);
+
+	handle->descriptor_string[1] = add_string_descriptor_utf8(handle, "🐈");
+	handle->descriptor_string[2] = add_string_descriptor_utf8(handle, "µááá");
 
 }
 
 int usbd_handle_standard_setup_request(usbd_handle_t *handle,
 		usb_setuprequest_t *req) {
+	// TODO: Return values and central transmission
+	// TODO: check bmRequestType
+
 	switch (req->bRequest) {
 	case USB_REQ_GET_STATUS: {
 		static char status[2] = { 0, 0 };
@@ -114,22 +131,24 @@ int usbd_handle_standard_setup_request(usbd_handle_t *handle,
 	case USB_REQ_SET_FEATURE:
 		break;
 	case USB_REQ_SET_ADDRESS:
-		// TODO Why &0x7F mask
-		//handle->set_address(req->wValue&0x7F);
-		handle->set_address(req->wValue);
+		handle->set_address(req->wValue&0x7F);
+		//handle->set_address(req->wValue);
 		// Send empty packet to acknowledge:
 		// TODO, parse the data to send forwards
 		handle->transmit(0x00, NULL, 0);
 		break;
-	case USB_REQ_GET_DESCRIPTOR:
-		switch (req->wValue >> 8) {
+	case USB_REQ_GET_DESCRIPTOR: {
+		int index = req->wValue & 0xFF;
+		int descriptor = req->wValue >> 8;
+
+		switch (descriptor) {
 		case USB_DT_DEVICE: {
 			handle->transmit(0x00, handle->descriptor_device,
 					handle->descriptor_device->bLength);
 			return 0;
 		}
 		case USB_DT_CONFIGURATION: {
-			int index = req->wValue & 0xFF;
+
 			if (index < USBD_CONFIGURATION_COUNT) {
 				// Do we still have to do the truncate thing?
 				size_t size =
@@ -137,9 +156,10 @@ int usbd_handle_standard_setup_request(usbd_handle_t *handle,
 								< handle->descriptor_configuration[index]->wTotalLength) ?
 								req->wLength :
 								handle->descriptor_configuration[index]->wTotalLength;
-				handle->transmit(0x00, handle->descriptor_configuration[index], size);
+				handle->transmit(0x00, handle->descriptor_configuration[index],
+						size);
 			} else {
-				// Invalid configuration requested!
+				handle->set_stall(0x00); //Verify this
 			}
 
 			return 0;
@@ -149,19 +169,28 @@ int usbd_handle_standard_setup_request(usbd_handle_t *handle,
 			//case USB_DT_INTERFACE: not requestable
 			//case USB_DT_ENDPOINT: not requestable
 		case USB_DT_STRING: {
-			// Only 0 for now
-			static usb_descriptor_string_t only0 = { 0 };
-			only0.bDescriptorType = USB_DT_STRING;
-			only0.bLength = 6;
-			only0.wLANGID[0] = 0x0409;
-			handle->transmit(0x00, &only0, only0.bLength);
+			// TODO: String Support
+			// Internal we'll only do 0x0409 (en_US)
+			// Additional languages will be in user mode
+			if (index==0) {
+				static usb_descriptor_string_t only0 = { 0 };
+				only0.bDescriptorType = USB_DT_STRING;
+				only0.bLength = 4;//6;
+				only0.wLANGID[0] = 0x0409;
+				handle->transmit(0x00, &only0, only0.bLength);
+			} else {
+				handle->transmit(0x00, handle->descriptor_string[index],  handle->descriptor_string[index]->bLength);
+			}
+
 
 			break;
 		}
 
 		}
+	}
 		break;
 	case USB_REQ_SET_DESCRIPTOR:
+		// What purpose has the SET_DESCRIPTOR request?
 		break;
 	case USB_REQ_GET_CONFIGURATION:
 		// Verify this
@@ -171,14 +200,16 @@ int usbd_handle_standard_setup_request(usbd_handle_t *handle,
 		// No configuration support yet
 		// TODO open the endpoints
 
-		// Configuration Numbers are 1-based?
+		// Configuration 0 = return to address mode = ?? As in unadressed?
+		// Configuration 1...n = apply config
+		// Configuration n+1 = Error, stall
 		int config = req->wValue & 0xFF;
 		if ((config) && (config - 1) < USBD_CONFIGURATION_COUNT) {
 			handle->configuration = req->wValue;
 			// Just send an ack
 			handle->transmit(0x00, NULL, 0);
 		} else {
-			/// Should we send a NACK?
+			handle->set_stall(0x00); // Verify this
 		}
 		break;
 	}

@@ -63,8 +63,8 @@ typedef struct {
 	uint8_t bLength;
 	uint8_t bDescriptorType;
 	union {
-		uint16_t bString[126];
-		uint16_t wLANGID[126];
+		uint16_t bString[0];
+		uint16_t wLANGID[0];
 	};
 } usb_descriptor_string_t;
 

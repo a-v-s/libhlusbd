@@ -97,6 +97,7 @@ C_SOURCES += main.c
 C_SOURCES += usbd_stm.c
 C_SOURCES += usbd.c
 C_SOURCES += usbd_descriptors.c
+C_SOURCES += ConvertUTF/ConvertUTF.c
 
 
 # ASM sources

@@ -13,6 +13,8 @@
 int usbd_stm32_transmit(uint8_t ep, void* data, size_t size);
 int usbd_stm32_set_address(uint8_t address);
 
+int usbd_stm32_set_stall(uint8_t ep);
 
+int usbd_stm32_clear_stall(uint8_t ep);
 
 #endif //USBD_STM

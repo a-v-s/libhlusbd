@@ -1,0 +1,3 @@
+[submodule "ConvertUTF"]
+	path = ConvertUTF
+	url = ../ConvertUTF.git

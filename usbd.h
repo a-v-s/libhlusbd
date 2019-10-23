@@ -19,7 +19,17 @@ struct usbd_handle_t;
 
 typedef int (*usbd_transmit_f)(uint8_t ep, void* data, size_t size);
 typedef int (*usbd_set_address_f)(uint8_t address);
+typedef int (*usbd_set_stall_f)(uint8_t ep);
+typedef int (*usbd_clear_stall_f)(uint8_t ep);
+
+
+//
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
 typedef void (*usbd_transfer_cb_f)(struct usbd_handle_t *handle,uint8_t ep, void* data, size_t size);
+//typedef void (*usbd_transfer_cb_f)(usbd_handle_t *handle,uint8_t ep, void* data, size_t size);
+#pragma GCC diagnostic pop
+
 
 #ifndef USBD_DESCRIPTOR_BUFFER_SIZE
 #define USBD_DESCRIPTOR_BUFFER_SIZE 512
@@ -37,6 +47,14 @@ typedef void (*usbd_transfer_cb_f)(struct usbd_handle_t *handle,uint8_t ep, void
 #define USBD_CONFIGURATION_COUNT 1
 #endif
 
+#ifndef USBD_STRING_COUNT
+#define USBD_STRING_COUNT 6
+#endif
+
+
+#ifndef USBD_UNICODE_SUPPORT
+#define USBD_UNICODE_SUPPORT 1
+#endif
 
 typedef struct {
 	void* buffer;
@@ -49,11 +67,14 @@ typedef struct {
 
 	usbd_transmit_f transmit;
 	usbd_set_address_f set_address;
+	usbd_set_stall_f set_stall;
+	usbd_clear_stall_f clear_stall;
 
 	uint8_t usbd_descriptor_buffer[USBD_DESCRIPTOR_BUFFER_SIZE];
 	size_t usbd_descriptor_buffer_offset;
 	usb_descriptor_device_t * descriptor_device;
 	usb_descriptor_configuration_t * descriptor_configuration[USBD_CONFIGURATION_COUNT];
+	usb_descriptor_string_t * descriptor_string[USBD_STRING_COUNT];
 
 	usbd_endpoint_t ep_in[USBD_ENDPOINTS_IN];
 	usbd_endpoint_t ep_out[USBD_ENDPOINTS_OUT];
@@ -160,6 +181,6 @@ typedef struct {
 #pragma pack(pop)
 
 int usbd_handle_standard_setup_request(usbd_handle_t *handle, usb_setuprequest_t *req);
-void usbd_setup_descriptors(usbd_handle_t *handle);
+void usbd_demo_setup_descriptors(usbd_handle_t *handle);
 
 #endif /* USBD_H_ */
