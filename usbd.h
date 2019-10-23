@@ -52,8 +52,8 @@ typedef void (*usbd_transfer_cb_f)(struct usbd_handle_t *handle,uint8_t ep, void
 #endif
 
 
-#ifndef USBD_UNICODE_SUPPORT
-#define USBD_UNICODE_SUPPORT 1
+#ifndef USBD_UNICODE_CONVERSION_ENABLED
+#define USBD_UNICODE_CONVERSION_ENABLED 1
 #endif
 
 typedef struct {

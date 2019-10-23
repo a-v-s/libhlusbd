@@ -10,6 +10,9 @@
 
 #include <stdint.h>
 
+
+// is uchar.h in C11 or not?
+
 typedef struct {
 	uint8_t bLength;
 	uint8_t bDescriptorType;

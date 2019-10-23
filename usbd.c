@@ -13,9 +13,10 @@
 #include "usbd.h"
 #include "usbd_descriptors.h"
 
-// Unicode
+#if USBD_UNICODE_CONVERSION_ENABLED
+// If we have Unicode Conversions enabled (UTF8 to UTF16)
 #include "ConvertUTF/ConvertUTF.h"
-
+#endif
 
 // Some temprary stuff to test buffers and callbacks
 uint8_t temp_recv_buffer[64];
@@ -107,8 +108,12 @@ void usbd_demo_setup_descriptors(usbd_handle_t *handle) {
 	usbd_add_endpoint_out(handle, 1, 1, temp_recv_buffer, 64,
 			(usbd_transfer_cb_f) &transfer_out_complete);
 
+	// Be sure to save the file as UTF-8. ;)
 	handle->descriptor_string[1] = add_string_descriptor_utf8(handle, "🐈");
-	handle->descriptor_string[2] = add_string_descriptor_utf8(handle, "µááá");
+
+	// The u"string" prefix encodes it as UTF16 from the start
+	handle->descriptor_string[2] = add_string_descriptor_utf16(handle, u"🐼");
+
 
 }
 
