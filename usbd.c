@@ -31,7 +31,7 @@ void transfer_out_complete(usbd_handle_t *handle, uint8_t epnum, void *data,
 
 //
 void usbd_add_endpoint_in(usbd_handle_t *handle, uint8_t config, uint8_t epnum,
-		usbd_transfer_cb_f cb) {
+		uint8_t eptype, uint16_t epsize, uint8_t epinterval, usbd_transfer_cb_f cb) {
 	// TODO Multi Configuration Support
 	// TODO Range checking
 	// TODO Endpoint type
@@ -41,16 +41,18 @@ void usbd_add_endpoint_in(usbd_handle_t *handle, uint8_t config, uint8_t epnum,
 	handle->descriptor_configuration[config - 1]->wTotalLength += ep->bLength;
 
 	ep->bDescriptorType = USB_DT_ENDPOINT;
-	ep->bmAttributes = 2;
-	ep->wMaxPacketSize = 64;
+	ep->bmAttributes = eptype;
+	ep->wMaxPacketSize = epsize;
 	ep->bEndpointAddress = 0x80 | epnum;
+	ep->bInterval = epinterval;
 
 	handle->ep_out[0x7F & epnum].cb = cb;
 
 }
 
 void usbd_add_endpoint_out(usbd_handle_t *handle, uint8_t config, uint8_t epnum,
-		void *buffer, size_t size, usbd_transfer_cb_f cb) {
+		uint8_t eptype, uint16_t epsize, uint8_t epinterval, void *buffer, size_t size,
+		usbd_transfer_cb_f cb) {
 	// TODO Multi Configuration Support
 	// TODO Range checking
 	// TODO Endpoint type
@@ -61,9 +63,10 @@ void usbd_add_endpoint_out(usbd_handle_t *handle, uint8_t config, uint8_t epnum,
 	handle->descriptor_configuration[config - 1]->wTotalLength += ep->bLength;
 
 	ep->bDescriptorType = USB_DT_ENDPOINT;
-	ep->bmAttributes = 2;
-	ep->wMaxPacketSize = 64;
+	ep->bmAttributes = eptype;
+	ep->wMaxPacketSize = epsize;
 	ep->bEndpointAddress = 0x7F & epnum;
+	ep->bInterval = epinterval;
 
 	handle->ep_out[0x7F & epnum].buffer = buffer;
 	handle->ep_out[0x7F & epnum].size = size;
@@ -82,7 +85,6 @@ void usbd_demo_setup_descriptors(usbd_handle_t *handle) {
 
 	handle->descriptor_device->iManufacturer = 1;
 	handle->descriptor_device->iProduct = 2;
-
 
 	handle->descriptor_configuration[0] = add_descriptor(handle,
 			sizeof(usb_descriptor_configuration_t));
@@ -103,17 +105,16 @@ void usbd_demo_setup_descriptors(usbd_handle_t *handle) {
 	iface->bInterfaceNumber = 0;
 	iface->bAlternateSetting = 0;
 
-	usbd_add_endpoint_in(handle, 1, 1,
+	usbd_add_endpoint_in(handle, 1, 1, USB_EP_ATTR_TYPE_INTERRUPT, 64, 1,
 			(usbd_transfer_cb_f) &transfer_in_complete);
-	usbd_add_endpoint_out(handle, 1, 1, temp_recv_buffer, 64,
-			(usbd_transfer_cb_f) &transfer_out_complete);
+	usbd_add_endpoint_out(handle, 1, 1, USB_EP_ATTR_TYPE_BULK, 64, 1,
+			temp_recv_buffer, 64, (usbd_transfer_cb_f) &transfer_out_complete);
 
 	// Be sure to save the file as UTF-8. ;)
-	handle->descriptor_string[1] = add_string_descriptor_utf8(handle, "🐈");
+	handle->descriptor_string[1] = add_string_descriptor_utf8(handle, u8"🐈");
 
 	// The u"string" prefix encodes it as UTF16 from the start
 	handle->descriptor_string[2] = add_string_descriptor_utf16(handle, u"🐼");
-
 
 }
 
@@ -136,7 +137,7 @@ int usbd_handle_standard_setup_request(usbd_handle_t *handle,
 	case USB_REQ_SET_FEATURE:
 		break;
 	case USB_REQ_SET_ADDRESS:
-		handle->set_address(req->wValue&0x7F);
+		handle->set_address(req->wValue & 0x7F);
 		//handle->set_address(req->wValue);
 		// Send empty packet to acknowledge:
 		// TODO, parse the data to send forwards
@@ -164,7 +165,7 @@ int usbd_handle_standard_setup_request(usbd_handle_t *handle,
 				handle->transmit(0x00, handle->descriptor_configuration[index],
 						size);
 			} else {
-				handle->set_stall(0x00); //Verify this
+				handle->set_stall(0x80); //Verify this
 			}
 
 			return 0;
@@ -177,21 +178,25 @@ int usbd_handle_standard_setup_request(usbd_handle_t *handle,
 			// TODO: String Support
 			// Internal we'll only do 0x0409 (en_US)
 			// Additional languages will be in user mode
-			if (index==0) {
+			if (index == 0) {
 				static usb_descriptor_string_t only0 = { 0 };
 				only0.bDescriptorType = USB_DT_STRING;
-				only0.bLength = 4;//6;
+				only0.bLength = 4;			//6;
 				only0.wLANGID[0] = 0x0409;
 				handle->transmit(0x00, &only0, only0.bLength);
 			} else {
-				handle->transmit(0x00, handle->descriptor_string[index],  handle->descriptor_string[index]->bLength);
+				handle->transmit(0x00, handle->descriptor_string[index],
+						handle->descriptor_string[index]->bLength);
 			}
-
 
 			break;
 		}
+		default:
+			// Unsupported descriptor requested
+			handle->set_stall(0x80); // Stall Endpoint 0x80
 
 		}
+
 	}
 		break;
 	case USB_REQ_SET_DESCRIPTOR:
@@ -214,13 +219,16 @@ int usbd_handle_standard_setup_request(usbd_handle_t *handle,
 			// Just send an ack
 			handle->transmit(0x00, NULL, 0);
 		} else {
-			handle->set_stall(0x00); // Verify this
+			handle->set_stall(0x80); //Verify this
 		}
 		break;
 	}
 	case USB_REQ_GET_INTERFACE:
 		break;
+	default:
+		handle->set_stall(0x00); //Verify this
 	}
+
 	return 0;
 
 }

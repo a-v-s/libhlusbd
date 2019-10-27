@@ -11,7 +11,9 @@
 #include <stdint.h>
 
 
-// is uchar.h in C11 or not?
+// C11 header uchar.h not included in newlib
+// But gcc still supports u"" UTF16 encoded strings anyways
+
 
 typedef struct {
 	uint8_t bLength;

@@ -165,6 +165,15 @@ typedef struct {
 #define USB_DT_SUPERSPEEDPLUS_ISOCHRONOUS_ENDPOINT_COMPANION 49
 
 
+// USB 2.0 specs Table 9-13. Standard Endpoint Descriptor
+#define USB_EP_ATTR_TYPE_CONTROL		0b00
+#define USB_EP_ATTR_TYPE_ISOCHRONOUS	0b01
+#define USB_EP_ATTR_TYPE_BULK			0b10
+#define USB_EP_ATTR_TYPE_INTERRUPT		0b11
+// TODO: SYNCHRONISATION AND USAGE TYPES
+//	When are they used? Afaik only for ISO, which won't be added at this time.
+
+
 typedef struct {
 	  uint8_t   bmRequest;
 	  uint8_t   bRequest;
