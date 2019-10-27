@@ -8,13 +8,14 @@
 #include "stm32f1xx_hal_pcd.h"
 #include "stm32f1xx_hal_pcd_ex.h"
 
+int usbd_stm32_transmit(void *pcd_handle, uint8_t ep, void *data, size_t size);
+int usbd_stm32_set_address(void *pcd_handle, uint8_t address);
 
+int usbd_stm32_ep_set_stall(void *pcd_handle, uint8_t ep);
 
-int usbd_stm32_transmit(uint8_t ep, void* data, size_t size);
-int usbd_stm32_set_address(uint8_t address);
-
-int usbd_stm32_set_stall(uint8_t ep);
-
-int usbd_stm32_clear_stall(uint8_t ep);
+int usbd_stm32_ep_clear_stall(void *pcd_handle, uint8_t ep);
+int usbd_stm32_ep_close(void *pcd_handle, uint8_t ep);
+int usbd_stm32_ep_open(void *pcd_handle, uint8_t epnum, uint8_t epsize,
+		uint8_t eptype);
 
 #endif //USBD_STM

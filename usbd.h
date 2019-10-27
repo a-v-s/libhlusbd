@@ -17,13 +17,26 @@ struct usbd_handle_t;
 
 
 
-typedef int (*usbd_transmit_f)(uint8_t ep, void* data, size_t size);
-typedef int (*usbd_set_address_f)(uint8_t address);
-typedef int (*usbd_set_stall_f)(uint8_t ep);
-typedef int (*usbd_clear_stall_f)(uint8_t ep);
+typedef int (*usbd_transmit_f)(void* device_specific, uint8_t ep, void* data, size_t size);
+typedef int (*usbd_set_address_f)(void* device_specific, uint8_t address);
+typedef int (*usbd_ep_set_stall_f)(void* device_specific, uint8_t epnum);
+typedef int (*usbd_ep_clear_stall_f)(void* device_specific, uint8_t epnum);
+typedef int (*usbd_ep_close_f)(void* device_specific, uint8_t epnum);
+typedef int (*usbd_ep_open_f)(void* device_specific, uint8_t epnum, uint8_t epsize, uint8_t eptype);
 
 
-//
+typedef struct {
+	usbd_transmit_f transmit;
+	usbd_set_address_f set_address;
+	usbd_ep_set_stall_f ep_set_stall;
+	usbd_ep_clear_stall_f ep_clear_stall;
+	usbd_ep_open_f ep_open;
+	usbd_ep_close_f ep_close;
+	void*	device_specific;
+} usbd_driver_t;
+
+// As the usbd_transfer_cb_f is in usbd_endpoint_t which is in usbd_handle_t
+// We get some circular problems, therefore I've put struct usbd_handle_t*
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
 typedef void (*usbd_transfer_cb_f)(struct usbd_handle_t *handle,uint8_t ep, void* data, size_t size);
@@ -35,12 +48,8 @@ typedef void (*usbd_transfer_cb_f)(struct usbd_handle_t *handle,uint8_t ep, void
 #define USBD_DESCRIPTOR_BUFFER_SIZE 512
 #endif
 
-#ifndef USBD_ENDPOINTS_IN
-#define USBD_ENDPOINTS_IN 8
-#endif
-
-#ifndef USBD_ENDPOINTS_OUT
-#define USBD_ENDPOINTS_OUT 8
+#ifndef USBD_ENDPOINTS_COUNT
+#define USBD_ENDPOINTS_COUNT 8
 #endif
 
 #ifndef USBD_CONFIGURATION_COUNT
@@ -55,37 +64,6 @@ typedef void (*usbd_transfer_cb_f)(struct usbd_handle_t *handle,uint8_t ep, void
 #ifndef USBD_UNICODE_CONVERSION_ENABLED
 #define USBD_UNICODE_CONVERSION_ENABLED 1
 #endif
-
-typedef struct {
-	void* buffer;
-	size_t size;
-	usbd_transfer_cb_f cb;
-} usbd_endpoint_t;
-
-typedef struct {
-	void*	device_specific;
-
-	usbd_transmit_f transmit;
-	usbd_set_address_f set_address;
-	usbd_set_stall_f set_stall;
-	usbd_clear_stall_f clear_stall;
-
-	uint8_t usbd_descriptor_buffer[USBD_DESCRIPTOR_BUFFER_SIZE];
-	size_t usbd_descriptor_buffer_offset;
-	usb_descriptor_device_t * descriptor_device;
-	usb_descriptor_configuration_t * descriptor_configuration[USBD_CONFIGURATION_COUNT];
-	usb_descriptor_string_t * descriptor_string[USBD_STRING_COUNT];
-
-	usbd_endpoint_t ep_in[USBD_ENDPOINTS_IN];
-	usbd_endpoint_t ep_out[USBD_ENDPOINTS_OUT];
-
-	uint8_t configuration;
-
-} usbd_handle_t;
-
-
-
-#pragma pack(push,1)
 
 
 
@@ -173,7 +151,7 @@ typedef struct {
 // TODO: SYNCHRONISATION AND USAGE TYPES
 //	When are they used? Afaik only for ISO, which won't be added at this time.
 
-
+#pragma pack(push,1)
 typedef struct {
 	  uint8_t   bmRequest;
 	  uint8_t   bRequest;
@@ -182,12 +160,43 @@ typedef struct {
 	  uint16_t  wLength;
 } usb_setuprequest_t;
 
-
-
 #include "usb_descriptors.h"
-
-
 #pragma pack(pop)
+
+
+typedef struct {
+	void* buffer;
+	size_t size;
+	usbd_transfer_cb_f cb;
+} usbd_endpoint_t;
+
+typedef struct {
+	usbd_driver_t driver;
+
+	uint8_t usbd_descriptor_buffer[USBD_DESCRIPTOR_BUFFER_SIZE];
+	size_t usbd_descriptor_buffer_offset;
+	usb_descriptor_device_t * descriptor_device;
+	usb_descriptor_configuration_t * descriptor_configuration[USBD_CONFIGURATION_COUNT];
+	usb_descriptor_string_t * descriptor_string[USBD_STRING_COUNT];
+
+	usbd_endpoint_t ep_in[USBD_ENDPOINTS_COUNT];
+	usbd_endpoint_t ep_out[USBD_ENDPOINTS_COUNT];
+
+	uint8_t configuration;
+
+} usbd_handle_t;
+
+
+
+
+
+
+int usbd_transmit(usbd_handle_t *handle,uint8_t ep, void* data, size_t size);
+int usbd_set_address(usbd_handle_t *handle,uint8_t address);
+int usbd_ep_set_stall(usbd_handle_t *handle,uint8_t epnum);
+int usbd_ep_clear_stall(usbd_handle_t *handle, uint8_t epnum);
+int usbd_ep_close(usbd_handle_t *handle,uint8_t epnum);
+int usbd_ep_open(usbd_handle_t *handle,uint8_t epnum, uint8_t epsize, uint8_t eptype);
 
 int usbd_handle_standard_setup_request(usbd_handle_t *handle, usb_setuprequest_t *req);
 void usbd_demo_setup_descriptors(usbd_handle_t *handle);

@@ -4,10 +4,12 @@
 
 static PCD_HandleTypeDef m_pcd_handle;
 
-static usbd_handle_t m_usbd_handle =
-		{ .device_specific = &m_pcd_handle, .transmit = &usbd_stm32_transmit,
-				.set_address = &usbd_stm32_set_address,
-		.set_stall =&usbd_stm32_set_stall, .clear_stall = &usbd_stm32_clear_stall};
+static usbd_handle_t m_usbd_handle = { .driver.device_specific = &m_pcd_handle,
+		.driver.transmit = &usbd_stm32_transmit, .driver.set_address =
+				&usbd_stm32_set_address, .driver.ep_set_stall =
+				&usbd_stm32_ep_set_stall, .driver.ep_clear_stall =
+				&usbd_stm32_ep_clear_stall, .driver.ep_open =
+				&usbd_stm32_ep_open, .driver.ep_close = &usbd_stm32_ep_close, };
 
 //uint8_t test_buffer[64];
 
@@ -20,7 +22,6 @@ usbd_handle_t* usbd_init() {
 	__HAL_RCC_USB_CLK_ENABLE();
 
 	// TODO: PullUp / Reset Behaviour
-
 
 	// Configure USB DM/DP pins
 	GPIO_InitStruct.Pin = (GPIO_PIN_11 | GPIO_PIN_12);
@@ -59,7 +60,7 @@ usbd_handle_t* usbd_init() {
 	m_pcd_handle.Init.low_power_enable = 0;
 
 	m_pcd_handle.pData = &m_usbd_handle;
-	m_usbd_handle.device_specific = &m_pcd_handle;
+	m_usbd_handle.driver.device_specific = &m_pcd_handle;
 
 	// Initialize LL Driver
 	HAL_PCD_Init(&m_pcd_handle);
@@ -130,7 +131,6 @@ void HAL_PCD_ResetCallback(PCD_HandleTypeDef *hpcd) {
 	//USBD_LL_SetSpeed((USBD_HandleTypeDef*)hpcd->pData, USBD_SPEED_FULL);
 	/* Reset Device */
 	//USBD_LL_Reset((USBD_HandleTypeDef*)hpcd->pData);
-
 	// Open EP0 OUT
 	HAL_PCD_EP_Open(hpcd, 0x00, 64, 0x00);
 	HAL_PCD_EP_Flush(hpcd, 0x00);
@@ -224,22 +224,30 @@ void SysTick_Handler(void) {
 	HAL_IncTick();
 }
 
-int usbd_stm32_transmit(uint8_t ep, void *data, size_t size) {
+int usbd_stm32_transmit(void *pcd_handle, uint8_t ep, void *data, size_t size) {
 	m_usbd_handle.ep_in[ep & 0x7F].buffer = data;
 	m_usbd_handle.ep_in[ep & 0x7F].size = size;
-	return HAL_PCD_EP_Transmit(&m_pcd_handle, ep, data, size);
+	return HAL_PCD_EP_Transmit(pcd_handle, ep, data, size);
 }
 
-int usbd_stm32_set_address(uint8_t address) {
-	return HAL_PCD_SetAddress(&m_pcd_handle, address);
+int usbd_stm32_set_address(void *pcd_handle, uint8_t address) {
+	return HAL_PCD_SetAddress(pcd_handle, address);
 }
 
-int usbd_stm32_set_stall(uint8_t ep) {
-	return HAL_PCD_EP_SetStall(&m_pcd_handle, ep);
+int usbd_stm32_ep_set_stall(void *pcd_handle, uint8_t ep) {
+	return HAL_PCD_EP_SetStall(pcd_handle, ep);
 }
 
-int usbd_stm32_clear_stall(uint8_t ep) {
-	return HAL_PCD_EP_ClrStall(&m_pcd_handle, ep);
+int usbd_stm32_ep_clear_stall(void *pcd_handle, uint8_t ep) {
+	return HAL_PCD_EP_ClrStall(pcd_handle, ep);
+}
+
+int usbd_stm32_ep_close(void *pcd_handle, uint8_t epnum) {
+	return HAL_PCD_EP_Close(pcd_handle, epnum);
+}
+int usbd_stm32_ep_open(void *pcd_handle, uint8_t epnum, uint8_t epsize,
+		uint8_t eptype) {
+	return HAL_PCD_EP_Open(pcd_handle, epnum, epsize, eptype);
 }
 
 // Also open and close EP
