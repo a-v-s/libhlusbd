@@ -82,23 +82,23 @@ usbd_handle_t* usbd_init() {
 
 //--
 void HAL_PCD_SetupStageCallback(PCD_HandleTypeDef *hpcd) {
-	// TODO: User Callbacks to oveeride default behaviour
-	usb_setuprequest_t setupRequest = *((usb_setuprequest_t*) (hpcd->Setup));
-	usbd_handle_standard_setup_request(hpcd->pData, &setupRequest);
+	usbd_handle_request(hpcd->pData, (usb_setuprequest_t*) (hpcd->Setup));
 }
 
 void HAL_PCD_DataOutStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 	// Reception Complete Callback
 	// TODO: Continuation transmissions
+	// TODO: Range checking
 	size_t received_amount = HAL_PCD_EP_GetRxCount(hpcd, epnum);
 	if ((epnum & 0x7F) == 0x00) {
 		// Setup
 	} else {
-
+		// Callback, deliver received data to application
 		if (m_usbd_handle.ep_out[0x7F & epnum].cb)
 			m_usbd_handle.ep_out[0x7F & epnum].cb(hpcd->pData, epnum,
 					m_usbd_handle.ep_out[epnum & 0x7F].buffer, received_amount);
 
+		// Prepare to receive the next transmission from the host
 		HAL_PCD_EP_Receive(hpcd, epnum,
 				m_usbd_handle.ep_out[epnum & 0x7F].buffer,
 				m_usbd_handle.ep_out[epnum & 0x7F].size);
@@ -109,6 +109,7 @@ void HAL_PCD_DataOutStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 	// Transmission Complete Callback
 	// TODO: Continuation transmissions
+	// TODO: Range checking
 	if ((epnum & 0x7F) == 0x00) {
 		// Setup
 		HAL_PCD_EP_SetStall(hpcd, 0x80);
@@ -131,6 +132,7 @@ void HAL_PCD_ResetCallback(PCD_HandleTypeDef *hpcd) {
 	//USBD_LL_SetSpeed((USBD_HandleTypeDef*)hpcd->pData, USBD_SPEED_FULL);
 	/* Reset Device */
 	//USBD_LL_Reset((USBD_HandleTypeDef*)hpcd->pData);
+
 	// Open EP0 OUT
 	HAL_PCD_EP_Open(hpcd, 0x00, 64, 0x00);
 	HAL_PCD_EP_Flush(hpcd, 0x00);

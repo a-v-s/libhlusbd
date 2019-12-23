@@ -8,6 +8,16 @@
 #include "stm32f1xx_hal_pcd.h"
 #include "stm32f1xx_hal_pcd_ex.h"
 
+#include <stdint.h>
+#include <stdbool.h>
+
+typedef struct {
+	GPIO_TypeDef* 	PullUpPort;
+	uint16_t		PullUpPin;
+	bool			PullUpInverted;
+
+} usbd_stm32_usbfs_v1_config;
+
 int usbd_stm32_transmit(void *pcd_handle, uint8_t ep, void *data, size_t size);
 int usbd_stm32_set_address(void *pcd_handle, uint8_t address);
 

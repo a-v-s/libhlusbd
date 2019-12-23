@@ -74,8 +74,10 @@ void SystemClock_Config(void)
 }
 
 int main() {
-	SystemClock_Config();
 	HAL_Init();
+	SystemClock_Config();
+	SystemCoreClockUpdate();
+
 	usbd_reenumerate();
 	usbd_init();
 
