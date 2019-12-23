@@ -1,6 +1,6 @@
+#include "usbd.h"
 #include "usbd_stm.h"
 
-#include "usbd.h"
 
 static PCD_HandleTypeDef m_pcd_handle;
 

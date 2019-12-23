@@ -124,7 +124,97 @@ void usbd_demo_setup_descriptors(usbd_handle_t *handle) {
 
 }
 
+usbd_handler_result_t usbd_handle_get_descriptor_request(usbd_handle_t *handle,
+		usb_setuprequest_t *req, void **buf, size_t *size) {
 
+	int index = req->wValue & 0xFF;
+	int descriptor = req->wValue >> 8;
+
+	switch (descriptor) {
+	case USB_DT_DEVICE: {
+		/*
+		 usbd_transmit(handle, 0x00, handle->descriptor_device,
+		 handle->descriptor_device->bLength);
+		 */
+		*buf = handle->descriptor_device;
+		*size = handle->descriptor_device->bLength;
+		return RESULT_HANDLED;
+
+		return 0;
+	}
+	case USB_DT_CONFIGURATION: {
+
+		if (index < USBD_CONFIGURATION_COUNT) {
+			// Do we still have to do the truncate thing?
+			// How to handle larger transactions?
+
+			/*
+			 size_t size =
+			 (req->wLength
+			 < handle->descriptor_configuration[index]->wTotalLength) ?
+			 req->wLength :
+			 handle->descriptor_configuration[index]->wTotalLength;
+			 usbd_transmit(handle, 0x00,
+			 handle->descriptor_configuration[index], size);
+
+			 */
+
+			*buf = handle->descriptor_configuration[index];
+			//*size = handle->descriptor_configuration[index]->wTotalLength;
+			*size = (req->wLength
+					< handle->descriptor_configuration[index]->wTotalLength) ?
+					req->wLength :
+					handle->descriptor_configuration[index]->wTotalLength;
+
+			return RESULT_HANDLED;
+
+		} else {
+			return RESULT_REJECTED;
+		}
+
+		return 0;
+	}
+		break;
+
+		//case USB_DT_INTERFACE: not requestable
+		//case USB_DT_ENDPOINT: not requestable
+	case USB_DT_STRING: {
+		// TODO: String Support
+		// Internal we'll only do 0x0409 (en_US)
+		// Additional languages will be in user mode
+		if (index == 0) {
+			// TODO, store String Descriptor 0 in global descriptor store
+			static usb_descriptor_string_t only0 = { 0 };
+			only0.bDescriptorType = USB_DT_STRING;
+			only0.bLength = 4;			//6;
+			only0.wLANGID[0] = 0x0409;
+			//usbd_transmit(handle, 0x00, &only0, only0.bLength);
+			*buf = &only0;
+			*size = only0.bLength;
+			return RESULT_HANDLED;
+
+		} else {
+			/*
+			 usbd_transmit(handle, 0x00, handle->descriptor_string[index],
+			 handle->descriptor_string[index]->bLength);
+			 */
+			*buf = handle->descriptor_string[index];
+			*size = handle->descriptor_string[index]->bLength;
+			return RESULT_HANDLED;
+
+		}
+
+		break;
+	}
+	default:
+		// Unsupported descriptor requested
+		//usbd_ep_set_stall(handle, 0x80); // Stall Endpoint 0x80
+		return RESULT_REJECTED;
+
+	}
+
+	return RESULT_REJECTED;
+}
 
 usbd_handler_result_t usbd_handle_standard_device_request(usbd_handle_t *handle,
 		usb_setuprequest_t *req, void **buf, size_t *size) {
@@ -151,7 +241,6 @@ usbd_handler_result_t usbd_handle_standard_device_request(usbd_handle_t *handle,
 		// Endpoint number is wIndex
 		// Bit 0 indicates the endpoint is stalled.
 
-
 		/// TODO
 		static uint16_t status = 0;
 		//usbd_transmit(handle, 0x80, &status, 2);
@@ -173,93 +262,7 @@ usbd_handler_result_t usbd_handle_standard_device_request(usbd_handle_t *handle,
 		return RESULT_HANDLED;
 		break;
 	case USB_REQ_GET_DESCRIPTOR: {
-		int index = req->wValue & 0xFF;
-		int descriptor = req->wValue >> 8;
-
-		switch (descriptor) {
-		case USB_DT_DEVICE: {
-			/*
-			usbd_transmit(handle, 0x00, handle->descriptor_device,
-					handle->descriptor_device->bLength);
-					*/
-			*buf = handle->descriptor_device;
-			*size = handle->descriptor_device->bLength;
-			return RESULT_HANDLED;
-
-			return 0;
-		}
-		case USB_DT_CONFIGURATION: {
-
-			if (index < USBD_CONFIGURATION_COUNT) {
-				// Do we still have to do the truncate thing?
-				// How to handle larger transactions?
-
-				/*
-				size_t size =
-						(req->wLength
-								< handle->descriptor_configuration[index]->wTotalLength) ?
-								req->wLength :
-								handle->descriptor_configuration[index]->wTotalLength;
-				usbd_transmit(handle, 0x00,
-						handle->descriptor_configuration[index], size);
-
-						*/
-
-				*buf = handle->descriptor_configuration[index];
-				//*size = handle->descriptor_configuration[index]->wTotalLength;
-				*size = (req->wLength
-						< handle->descriptor_configuration[index]->wTotalLength) ?
-						req->wLength :
-						handle->descriptor_configuration[index]->wTotalLength;
-
-
-				return RESULT_HANDLED;
-
-			} else {
-				return RESULT_REJECTED;
-			}
-
-			return 0;
-		}
-			break;
-
-			//case USB_DT_INTERFACE: not requestable
-			//case USB_DT_ENDPOINT: not requestable
-		case USB_DT_STRING: {
-			// TODO: String Support
-			// Internal we'll only do 0x0409 (en_US)
-			// Additional languages will be in user mode
-			if (index == 0) {
-				// TODO, store String Descriptor 0 in global descriptor store
-				static usb_descriptor_string_t only0 = { 0 };
-				only0.bDescriptorType = USB_DT_STRING;
-				only0.bLength = 4;			//6;
-				only0.wLANGID[0] = 0x0409;
-				//usbd_transmit(handle, 0x00, &only0, only0.bLength);
-				*buf = &only0;
-				*size = only0.bLength;
-				return RESULT_HANDLED;
-
-			} else {
-				/*
-				usbd_transmit(handle, 0x00, handle->descriptor_string[index],
-						handle->descriptor_string[index]->bLength);
-						*/
-				*buf = handle->descriptor_string[index];
-				*size = handle->descriptor_string[index]->bLength;
-				return RESULT_HANDLED;
-
-			}
-
-			break;
-		}
-		default:
-			// Unsupported descriptor requested
-			//usbd_ep_set_stall(handle, 0x80); // Stall Endpoint 0x80
-			return RESULT_REJECTED;
-
-		}
-
+		return usbd_handle_get_descriptor_request(handle, req, buf, size);
 	}
 		break;
 	case USB_REQ_SET_DESCRIPTOR:
@@ -361,7 +364,6 @@ usbd_handler_result_t usbd_handle_standard_endpoint_request(
 usbd_handler_result_t usbd_handle_standard_request(usbd_handle_t *handle,
 		usb_setuprequest_t *req, void **buf, size_t *len) {
 
-
 	switch (req->bmRequest.Recipient) {
 	case USB_REQTYPE_RECIPIENT_DEVICE:
 		return usbd_handle_standard_device_request(handle, req, buf, len);
@@ -380,13 +382,13 @@ usbd_handler_result_t usbd_handle_standard_request(usbd_handle_t *handle,
 
 }
 
-usbd_handler_result_t usbd_handle_request(usbd_handle_t *handle, usb_setuprequest_t *req) {
+usbd_handler_result_t usbd_handle_request(usbd_handle_t *handle,
+		usb_setuprequest_t *req) {
 	usbd_handler_result_t result = RESULT_NEXT_PARSER;
 	void *buf = NULL;
 	size_t size = 0;
 
 	// TODO, User handlers
-
 
 	if (result == RESULT_NEXT_PARSER) {
 		result = usbd_handle_standard_request(handle, req, &buf, &size);

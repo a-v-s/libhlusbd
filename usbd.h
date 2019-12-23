@@ -64,6 +64,10 @@ typedef void (*usbd_transfer_cb_f)(struct usbd_handle_t *handle, uint8_t ep,
 #define USBD_UNICODE_CONVERSION_ENABLED 1
 #endif
 
+#ifndef USBD_REQUEST_HANDLER_COUNT
+#define USBD_REQUEST_HANDLER_COUNT 4
+#endif
+
 // bmRequestType bit definitions
 // Beyond Logic USB in a Nutshell - Chapter 6
 // https://www.beyondlogic.org/usbnutshell/usb6.shtml
@@ -161,6 +165,16 @@ typedef struct {
 	usbd_transfer_cb_f cb;
 } usbd_endpoint_t;
 
+
+typedef enum {
+	RESULT_NEXT_PARSER = 0,
+	RESULT_HANDLED = 1,
+	RESULT_REJECTED = 2,
+} usbd_handler_result_t;
+
+typedef usbd_handler_result_t (* usbd_request_handler)(void *handle,
+		usb_setuprequest_t *req, void **buf, size_t *size);
+
 typedef struct {
 	usbd_driver_t driver;
 
@@ -173,16 +187,15 @@ typedef struct {
 	usbd_endpoint_t ep_in[USBD_ENDPOINTS_COUNT];
 	usbd_endpoint_t ep_out[USBD_ENDPOINTS_COUNT];
 
+	usbd_request_handler request_handlers[USBD_REQUEST_HANDLER_COUNT];
+
 	uint8_t configuration;
 	uint8_t interface;
 
 } usbd_handle_t;
 
-typedef enum {
-	RESULT_NEXT_PARSER = 0,
-	RESULT_HANDLED = 1,
-	RESULT_REJECTED = 2,
-} usbd_handler_result_t;
+
+
 
 int usbd_transmit(usbd_handle_t *handle, uint8_t ep, void *data, size_t size);
 int usbd_set_address(usbd_handle_t *handle, uint8_t address);
@@ -194,5 +207,7 @@ int usbd_ep_open(usbd_handle_t *handle, uint8_t epnum, uint8_t epsize,
 
 usbd_handler_result_t usbd_handle_request(usbd_handle_t *handle, usb_setuprequest_t *req);
 void usbd_demo_setup_descriptors(usbd_handle_t *handle);
+
+int usbd_request_handler_add(usbd_handler_result_t* handler);
 
 #endif /* USBD_H_ */
