@@ -123,6 +123,12 @@ void HAL_PCD_DataOutStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 	size_t received_amount = HAL_PCD_EP_GetRxCount(hpcd, epnum);
 	if ((epnum & 0x7F) == 0x00) {
 		// Setup
+		HAL_PCD_EP_SetStall(hpcd, 0x80);
+		HAL_PCD_EP_SetStall(hpcd, 0x00);
+
+		//HAL_PCD_EP_ClrStall(hpcd, 0x80);
+		//HAL_PCD_EP_ClrStall(hpcd, 0x00);
+
 	} else {
 		// Callback, deliver received data to application
 		if (m_usbd_handle.ep_out[0x7F & epnum].cb)
@@ -143,7 +149,12 @@ void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 	// TODO: Range checking
 	if ((epnum & 0x7F) == 0x00) {
 		// Setup
+
+		// Fix for "can't set config #1, error -32"
 		HAL_PCD_EP_SetStall(hpcd, 0x80);
+		HAL_PCD_EP_SetStall(hpcd, 0x00);
+		HAL_PCD_EP_Transmit(hpcd, 0x00, NULL, 0);
+
 		HAL_PCD_EP_Receive(hpcd, 0x00, NULL, 0);
 	} else {
 		// Data
@@ -260,7 +271,14 @@ void SysTick_Handler(void) {
 int usbd_stm32_transmit(void *pcd_handle, uint8_t ep, void *data, size_t size) {
 	m_usbd_handle.ep_in[ep & 0x7F].buffer = data;
 	m_usbd_handle.ep_in[ep & 0x7F].size = size;
-	return HAL_PCD_EP_Transmit(pcd_handle, ep, data, size);
+	int result =  HAL_PCD_EP_Transmit(pcd_handle, ep, data, size);
+
+	// Do we need something similar to the nrfx fix fo the
+	// "can't set config #1, error -32" problem?
+
+
+	return result;
+
 }
 
 int usbd_stm32_set_address(void *pcd_handle, uint8_t address) {
@@ -280,7 +298,14 @@ int usbd_stm32_ep_close(void *pcd_handle, uint8_t epnum) {
 }
 int usbd_stm32_ep_open(void *pcd_handle, uint8_t epnum, uint8_t epsize,
 		uint8_t eptype) {
-	return HAL_PCD_EP_Open(pcd_handle, epnum, epsize, eptype);
+	int status = 0;
+	status = HAL_PCD_EP_Open(pcd_handle, epnum, epsize, eptype);
+	if (status) return status;
+	status = HAL_PCD_EP_Flush(pcd_handle, epnum);
+	if (status) return status;
+	status = HAL_PCD_EP_ClrStall(pcd_handle, epnum);
+	if (status) return status;
+	return status;
 }
 
 // Also open and close EP
