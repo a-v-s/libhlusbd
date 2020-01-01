@@ -262,8 +262,8 @@ usbd_handler_result_t usbd_handle_standard_device_request(usbd_handle_t *handle,
 
 				// THIS IS A TEMPORARY SOLUTION
 				// Open all endpoints in each direction
-				usbd_ep_open(handle,i,64,2);
-				usbd_ep_open(handle,0x80|i,64,2);
+				usbd_ep_open(handle,i,64,USB_EP_ATTR_TYPE_INTERRUPT);
+				usbd_ep_open(handle,0x80|i,64,USB_EP_ATTR_TYPE_INTERRUPT);
 			}
 
 			return RESULT_HANDLED;

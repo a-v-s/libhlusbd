@@ -1,33 +1,32 @@
 /*
 
-File: 		usbd_nrfx.c
-Author:		André van Schoubroeck
-License:	MIT
+ File: 		usbd_nrfx.c
+ Author:		André van Schoubroeck
+ License:	MIT
 
 
-MIT License
+ MIT License
 
-Copyright (c) 2018, 2019 André van Schoubroeck
+ Copyright (c) 2018, 2019 André van Schoubroeck
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
 
-*/
-
+ */
 
 #include <string.h>
 #include <stdbool.h>
@@ -59,7 +58,7 @@ static void nrfx_openusb_event_handler(nrfx_usbd_evt_t const *const p_event) {
 
 			if (m_usbd_handle.ep_out[0x7F && p_event->data.eptransfer.ep].buffer
 					&& m_usbd_handle.ep_out[0x7F && p_event->data.eptransfer.ep].size) {
-				static nrfx_usbd_transfer_t transfer = {0};
+				static nrfx_usbd_transfer_t transfer = { 0 };
 
 				transfer.p_data.rx = m_usbd_handle.ep_out[0x7F
 						&& p_event->data.eptransfer.ep].buffer;
@@ -79,11 +78,17 @@ static void nrfx_openusb_event_handler(nrfx_usbd_evt_t const *const p_event) {
 			} else {
 				if (p_event->data.eptransfer.ep & 0x80) {
 					// IN
-					if (m_usbd_handle.ep_in[p_event->data.eptransfer.ep].cb)
-						m_usbd_handle.ep_in[p_event->data.eptransfer.ep].cb(
+					if (!nrfx_usbd_errata_154()) {
+						nrfx_usbd_setup_clear();
+					}
+
+					if (m_usbd_handle.ep_in[0x7F & p_event->data.eptransfer.ep].cb)
+						m_usbd_handle.ep_in[0x7F & p_event->data.eptransfer.ep].cb(
 								&m_usbd_handle, p_event->data.eptransfer.ep,
-								m_usbd_handle.ep_out[0x7F & p_event->data.eptransfer.ep].buffer,
-								m_usbd_handle.ep_out[p_event->data.eptransfer.ep].size);
+								m_usbd_handle.ep_out[0x7F
+										& p_event->data.eptransfer.ep].buffer,
+								m_usbd_handle.ep_out[0x7F
+										& p_event->data.eptransfer.ep].size);
 
 				} else {
 					// OUT
@@ -92,12 +97,12 @@ static void nrfx_openusb_event_handler(nrfx_usbd_evt_t const *const p_event) {
 						nrfx_usbd_setup_clear();
 					}
 
-					if (m_usbd_handle.ep_out[0x7F & p_event->data.eptransfer.ep].cb)
-						m_usbd_handle.ep_out[0x7F & p_event->data.eptransfer.ep].cb(
+					if (m_usbd_handle.ep_out[p_event->data.eptransfer.ep].cb)
+						m_usbd_handle.ep_out[p_event->data.eptransfer.ep].cb(
 								&m_usbd_handle, p_event->data.eptransfer.ep,
-								m_usbd_handle.ep_out[0x7F & p_event->data.eptransfer.ep].buffer,
-								nrfx_usbd_epout_size_get(p_event->data.eptransfer.ep) );
-
+								m_usbd_handle.ep_out[p_event->data.eptransfer.ep].buffer,
+								nrfx_usbd_epout_size_get(
+										p_event->data.eptransfer.ep));
 
 				}
 
