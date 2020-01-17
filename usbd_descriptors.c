@@ -109,6 +109,7 @@ void* add_string_descriptor_utf16(usbd_handle_t *handle, uint16_t *utf16_string)
 
 	strdesc->bLength = offset - initial_offset;
 	strdesc->bDescriptorType = USB_DT_STRING;
+	handle->usbd_descriptor_buffer_offset =  offset;
 	return strdesc;
 }
 

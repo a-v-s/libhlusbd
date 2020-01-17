@@ -183,9 +183,12 @@ typedef struct {
 #pragma pack(pop)
 
 typedef struct {
-	void *buffer;
-	size_t size;
+	size_t ep_size;
+	void *data_buffer;
+	size_t data_size;
 	usbd_transfer_cb_f cb;
+	size_t data_left;
+
 } usbd_endpoint_t;
 
 

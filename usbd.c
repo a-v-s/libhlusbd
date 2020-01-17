@@ -83,8 +83,8 @@ void usbd_add_endpoint_out(usbd_handle_t *handle, uint8_t config, uint8_t epnum,
 	ep->bEndpointAddress = 0x7F & epnum;
 	ep->bInterval = epinterval;
 
-	handle->ep_out[0x7F & epnum].buffer = buffer;
-	handle->ep_out[0x7F & epnum].size = size;
+	handle->ep_out[0x7F & epnum].data_buffer = buffer;
+	handle->ep_out[0x7F & epnum].data_size = size;
 	handle->ep_out[0x7F & epnum].cb = cb;
 
 }
@@ -199,16 +199,7 @@ usbd_handler_result_t usbd_handle_standard_device_request(usbd_handle_t *handle,
 		//  USB_REQ_CLEAR_FEATURE and USB_REQ_SET_FEATURE. TODO: Investigate
 		//  how we're supposed to behave when this has been set.
 
-		// If the request is directed to an interface (check bmRequestType)
-		// Interface number is wIndex
-		// We're always supposed to return 0
-
-		// If the request is directed to an endpoint (check bmRequestType)
-		// Endpoint number is wIndex
-		// Bit 0 indicates the endpoint is stalled.
-
-		/// TODO
-		static uint16_t status = 0;
+		static const uint16_t status = 0;
 		//usbd_transmit(handle, 0x80, &status, 2);
 		*buf = &status;
 		*size = sizeof(status);
@@ -257,7 +248,9 @@ usbd_handler_result_t usbd_handle_standard_device_request(usbd_handle_t *handle,
 			// TODO: Apply configuration (configure endpoints)
 			// TODO: Callbacks when configuration changes
 
-			for (int i = 0; i < USBD_ENDPOINTS_COUNT; i++) {
+			//for (int i = 0; i < USBD_ENDPOINTS_COUNT; i++) {
+			// Start with EP1 not EP0, as EP0 is for config
+			for (int i = 1; i < USBD_ENDPOINTS_COUNT; i++) {
 				// TODO CONFIGURE ENDPOINTS
 
 				// THIS IS A TEMPORARY SOLUTION
@@ -284,7 +277,15 @@ usbd_handler_result_t usbd_handle_standard_interface_request(
 
 	switch (req->bRequest) {
 	case USB_REQ_GET_STATUS: {
-		// TODO
+
+		// If the request is directed to an interface (check bmRequestType)
+		// Interface number is wIndex
+		// We're always supposed to return 0
+		// So we're done like this
+		const static uint16_t status = 0;
+		*buf = &status;
+		*len = sizeof(status);
+		return RESULT_HANDLED;
 		break;
 	}
 	case USB_REQ_CLEAR_FEATURE: {
@@ -312,7 +313,15 @@ usbd_handler_result_t usbd_handle_standard_endpoint_request(
 
 	switch (req->bRequest) {
 	case USB_REQ_GET_STATUS: {
-		// TODO
+		// TODO: Give a proper response,
+		// If the request is directed to an endpoint (check bmRequestType)
+		// Endpoint number is wIndex
+		// Bit 0 indicates the endpoint is stalled.
+
+		const static uint16_t status = 0;
+		*buf = &status;
+		*len = sizeof(status);
+		return RESULT_HANDLED;
 		break;
 	}
 	case USB_REQ_CLEAR_FEATURE: {
@@ -375,6 +384,12 @@ usbd_handler_result_t usbd_handle_request(usbd_handle_t *handle,
 }
 
 int usbd_transmit(usbd_handle_t *handle, uint8_t ep, void *data, size_t size) {
+	handle->ep_in[ep & 0x7F].data_buffer = data;
+	handle->ep_in[ep & 0x7F].data_size = size;
+	if (handle->ep_in[ep & 0x7F].ep_size < size)
+		handle->ep_in[ep & 0x7F].data_left = size - handle->ep_in[ep & 0x7F].ep_size;
+	else
+		handle->ep_in[ep & 0x7F].data_left = 0;
 	return handle->driver.transmit(handle->driver.device_specific, ep, data,
 			size);
 }
@@ -392,6 +407,13 @@ int usbd_ep_close(usbd_handle_t *handle, uint8_t epnum) {
 }
 int usbd_ep_open(usbd_handle_t *handle, uint8_t epnum, uint8_t epsize,
 		uint8_t eptype) {
+	if (0x80 && epnum) {
+		// IN
+		handle->ep_in[epnum & 0x7F].ep_size=epsize;
+	} else {
+		// OUT
+		handle->ep_out[epnum & 0x7F].ep_size=epsize;
+	}
 	return handle->driver.ep_open(handle->driver.device_specific, epnum, epsize,
 			eptype);
 }

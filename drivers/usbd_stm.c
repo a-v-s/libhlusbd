@@ -1,41 +1,39 @@
 /*
 
-File: 		usbd_stm.c
-Author:		André van Schoubroeck
-License:	MIT
+ File:         usbd_stm.c
+ Author:        André van Schoubroeck
+ License:    MIT
 
 
-MIT License
+ MIT License
 
-Copyright (c) 2018, 2019 André van Schoubroeck
+ Copyright (c) 2018, 2019 André van Schoubroeck
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
 
-*/
-
+ */
 
 #include "usbd.h"
 #include "usbd_stm.h"
 
+static PCD_HandleTypeDef m_hpcd;
 
-static PCD_HandleTypeDef m_pcd_handle;
-
-static usbd_handle_t m_usbd_handle = { .driver.device_specific = &m_pcd_handle,
+static usbd_handle_t m_usbd_handle = { .driver.device_specific = &m_hpcd,
 		.driver.transmit = &usbd_stm32_transmit, .driver.set_address =
 				&usbd_stm32_set_address, .driver.ep_set_stall =
 				&usbd_stm32_ep_set_stall, .driver.ep_clear_stall =
@@ -84,28 +82,30 @@ usbd_handle_t* usbd_init() {
 
 	// What are they?
 	// Set LL Driver parameters
-	m_pcd_handle.Instance = USB;
-	m_pcd_handle.Init.dev_endpoints = 8;
-	m_pcd_handle.Init.phy_itface = PCD_PHY_EMBEDDED;
-	m_pcd_handle.Init.speed = PCD_SPEED_FULL;
-	m_pcd_handle.Init.low_power_enable = 0;
+	m_hpcd.Instance = USB;
+	m_hpcd.Init.dev_endpoints = 8;
+	m_hpcd.Init.phy_itface = PCD_PHY_EMBEDDED;
+	m_hpcd.Init.speed = PCD_SPEED_FULL;
+	m_hpcd.Init.low_power_enable = 0;
 
-	m_pcd_handle.pData = &m_usbd_handle;
-	m_usbd_handle.driver.device_specific = &m_pcd_handle;
+	m_hpcd.pData = &m_usbd_handle;
+	m_usbd_handle.driver.device_specific = &m_hpcd;
 
 	// Initialize LL Driver
-	HAL_PCD_Init(&m_pcd_handle);
+	HAL_PCD_Init(&m_hpcd);
 
 	// TODO: Can we integrate this with dynamic behavior?
 	// Eg. integrate this with open endpoint logic
 	int pma_buffer_pos = 0x18;
-	HAL_PCDEx_PMAConfig(&m_pcd_handle, 0x00, PCD_SNG_BUF, pma_buffer_pos);
+	HAL_PCDEx_PMAConfig(&m_hpcd, 0x00, PCD_SNG_BUF, pma_buffer_pos);
 	pma_buffer_pos += 0x40;
-	HAL_PCDEx_PMAConfig(&m_pcd_handle, 0x80, PCD_SNG_BUF, pma_buffer_pos);
+	HAL_PCDEx_PMAConfig(&m_hpcd, 0x80, PCD_SNG_BUF, pma_buffer_pos);
 	pma_buffer_pos += 0x40;
-	HAL_PCDEx_PMAConfig(&m_pcd_handle, 0x01, PCD_SNG_BUF, pma_buffer_pos);
+	HAL_PCDEx_PMAConfig(&m_hpcd, 0x01, PCD_SNG_BUF, pma_buffer_pos);
 	pma_buffer_pos += 0x40;
-	HAL_PCDEx_PMAConfig(&m_pcd_handle, 0x81, PCD_SNG_BUF, pma_buffer_pos);
+	HAL_PCDEx_PMAConfig(&m_hpcd, 0x81, PCD_SNG_BUF, pma_buffer_pos);
+	pma_buffer_pos += 0x40;
+	HAL_PCDEx_PMAConfig(&m_hpcd, 0x82, PCD_SNG_BUF, pma_buffer_pos);
 
 	return &m_usbd_handle;
 
@@ -125,6 +125,7 @@ void HAL_PCD_DataOutStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 		// Setup
 		HAL_PCD_EP_SetStall(hpcd, 0x80);
 		HAL_PCD_EP_SetStall(hpcd, 0x00);
+		HAL_PCD_EP_Transmit(hpcd, 0x00, NULL, 0);
 
 		//HAL_PCD_EP_ClrStall(hpcd, 0x80);
 		//HAL_PCD_EP_ClrStall(hpcd, 0x00);
@@ -133,12 +134,13 @@ void HAL_PCD_DataOutStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 		// Callback, deliver received data to application
 		if (m_usbd_handle.ep_out[0x7F & epnum].cb)
 			m_usbd_handle.ep_out[0x7F & epnum].cb(hpcd->pData, epnum,
-					m_usbd_handle.ep_out[epnum & 0x7F].buffer, received_amount);
+					m_usbd_handle.ep_out[epnum & 0x7F].data_buffer,
+					received_amount);
 
 		// Prepare to receive the next transmission from the host
 		HAL_PCD_EP_Receive(hpcd, epnum,
-				m_usbd_handle.ep_out[epnum & 0x7F].buffer,
-				m_usbd_handle.ep_out[epnum & 0x7F].size);
+				m_usbd_handle.ep_out[epnum & 0x7F].data_buffer,
+				m_usbd_handle.ep_out[epnum & 0x7F].data_size);
 
 	}
 }
@@ -150,18 +152,81 @@ void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 	if ((epnum & 0x7F) == 0x00) {
 		// Setup
 
-		// Fix for "can't set config #1, error -32"
-		HAL_PCD_EP_SetStall(hpcd, 0x80);
-		HAL_PCD_EP_SetStall(hpcd, 0x00);
-		HAL_PCD_EP_Transmit(hpcd, 0x00, NULL, 0);
+		/*
+		 // Fix for "can't set config #1, error -32"
+		 HAL_PCD_EP_SetStall(hpcd, 0x80);
+		 HAL_PCD_EP_SetStall(hpcd, 0x00);
+		 HAL_PCD_EP_Transmit(hpcd, 0x00, NULL, 0);
 
-		HAL_PCD_EP_Receive(hpcd, 0x00, NULL, 0);
+		 HAL_PCD_EP_Receive(hpcd, 0x00, NULL, 0);
+		 */
+
+
+
+		// If the transfer is bigger then the endpoint size
+		if (m_usbd_handle.ep_in[epnum & 0x7F].data_left
+				> m_usbd_handle.ep_in[epnum & 0x7F].ep_size) {
+
+
+			HAL_PCD_EP_Transmit(hpcd, epnum,
+					m_usbd_handle.ep_in[epnum & 0x7F].data_buffer
+							+ (m_usbd_handle.ep_in[epnum & 0x7F].data_size
+									- m_usbd_handle.ep_in[epnum & 0x7F].data_left),
+					m_usbd_handle.ep_in[epnum & 0x7F].ep_size);
+
+			m_usbd_handle.ep_in[epnum & 0x7F].data_left -=
+								m_usbd_handle.ep_in[epnum & 0x7F].ep_size;
+
+			HAL_PCD_EP_Receive(hpcd, 0x00, NULL, 0);
+		} else {
+			size_t size = m_usbd_handle.ep_in[epnum & 0x7F].data_left;
+			HAL_PCD_EP_SetStall(hpcd, 0x80);
+			HAL_PCD_EP_SetStall(hpcd, 0x00);
+
+
+			HAL_PCD_EP_Transmit(hpcd, epnum,
+								m_usbd_handle.ep_in[epnum & 0x7F].data_buffer
+										+ (m_usbd_handle.ep_in[epnum & 0x7F].data_size
+												- m_usbd_handle.ep_in[epnum & 0x7F].data_left),
+								size);
+
+			m_usbd_handle.ep_in[epnum & 0x7F].data_left = 0;
+
+			HAL_PCD_EP_Receive(hpcd, 0x00, NULL, 0);
+		}
+
 	} else {
-		// Data
-		if (m_usbd_handle.ep_in[0x7F & epnum].cb)
-			m_usbd_handle.ep_in[0x7F & epnum].cb(hpcd->pData, epnum,
-					m_usbd_handle.ep_out[epnum & 0x7F].buffer,
-					m_usbd_handle.ep_out[epnum & 0x7F].size);
+		/*
+		 // Data
+		 if (m_usbd_handle.ep_in[0x7F & epnum].cb)
+		 m_usbd_handle.ep_in[0x7F & epnum].cb(hpcd->pData, epnum,
+		 m_usbd_handle.ep_out[epnum & 0x7F].buffer,
+		 m_usbd_handle.ep_out[epnum & 0x7F].size);
+		 */
+
+		// If the transfer is bigger then the endpoint size
+		if (m_usbd_handle.ep_in[epnum & 0x7F].data_left
+				> m_usbd_handle.ep_in[epnum & 0x7F].ep_size) {
+			m_usbd_handle.ep_in[epnum & 0x7F].data_left -= m_usbd_handle.ep_in[epnum
+					& 0x7F].ep_size;
+			HAL_PCD_EP_Transmit(hpcd, epnum,
+					m_usbd_handle.ep_in[epnum & 0x7F].data_buffer
+							+ (m_usbd_handle.ep_in[epnum & 0x7F].data_size
+									- m_usbd_handle.ep_in[epnum & 0x7F].data_left),
+									m_usbd_handle.ep_in[epnum & 0x7F].ep_size);
+
+		} else {
+			// The transfer is done
+			if (!m_usbd_handle.ep_in[epnum & 0x7F].data_left) {
+				// The transfer size is (a multiple of) the ep size
+				// We need to send a ZLP
+				HAL_PCD_EP_Transmit(hpcd, epnum, NULL, 0);
+			}
+			if (m_usbd_handle.ep_in[0x7F & epnum].cb)
+				m_usbd_handle.ep_in[0x7F & epnum].cb(hpcd->pData, epnum,
+						m_usbd_handle.ep_out[epnum & 0x7F].data_buffer,
+						m_usbd_handle.ep_out[epnum & 0x7F].data_size);
+		}
 
 	}
 
@@ -174,16 +239,17 @@ void HAL_PCD_ResetCallback(PCD_HandleTypeDef *hpcd) {
 	//USBD_LL_SetSpeed((USBD_HandleTypeDef*)hpcd->pData, USBD_SPEED_FULL);
 	/* Reset Device */
 	//USBD_LL_Reset((USBD_HandleTypeDef*)hpcd->pData);
-
 	// Open EP0 OUT
 	HAL_PCD_EP_Open(hpcd, 0x00, 64, 0x00);
 	HAL_PCD_EP_Flush(hpcd, 0x00);
 	HAL_PCD_EP_ClrStall(hpcd, 0x00);
+	m_usbd_handle.ep_out[0].ep_size = 64;
 
 	// Open EP0 IN
 	HAL_PCD_EP_Open(hpcd, 0x80, 64, 0x00);
 	HAL_PCD_EP_Flush(hpcd, 0x80);
 	HAL_PCD_EP_ClrStall(hpcd, 0x80);
+	m_usbd_handle.ep_in[0].ep_size = 64;
 
 	// TODO
 	// For now, open the endpoints here
@@ -193,13 +259,15 @@ void HAL_PCD_ResetCallback(PCD_HandleTypeDef *hpcd) {
 	HAL_PCD_EP_Open(hpcd, 0x01, 64, 0x02);
 	HAL_PCD_EP_Flush(hpcd, 0x01);
 	HAL_PCD_EP_ClrStall(hpcd, 0x01);
-	HAL_PCD_EP_Receive(hpcd, 0x01, m_usbd_handle.ep_out[1].buffer,
-			m_usbd_handle.ep_out[1].size);
+	HAL_PCD_EP_Receive(hpcd, 0x01, m_usbd_handle.ep_out[1].data_buffer,
+			m_usbd_handle.ep_out[1].data_size);
+	m_usbd_handle.ep_out[1].ep_size = 64;
 
 	// Open EP1 IN
 	HAL_PCD_EP_Open(hpcd, 0x81, 64, 0x02);
 	HAL_PCD_EP_Flush(hpcd, 0x81);
 	HAL_PCD_EP_ClrStall(hpcd, 0x81);
+	m_usbd_handle.ep_in[1].ep_size = 64;
 
 }
 
@@ -257,7 +325,7 @@ void HAL_PCD_DisconnectCallback(PCD_HandleTypeDef *hpcd) {
 }
 
 void USB_LP_CAN1_RX0_IRQHandler(void) {
-	HAL_PCD_IRQHandler(&m_pcd_handle);
+	HAL_PCD_IRQHandler(&m_hpcd);
 }
 
 void USBWakeUp_IRQHandler(void) {
@@ -268,43 +336,45 @@ void SysTick_Handler(void) {
 	HAL_IncTick();
 }
 
-int usbd_stm32_transmit(void *pcd_handle, uint8_t ep, void *data, size_t size) {
-	m_usbd_handle.ep_in[ep & 0x7F].buffer = data;
-	m_usbd_handle.ep_in[ep & 0x7F].size = size;
-	int result =  HAL_PCD_EP_Transmit(pcd_handle, ep, data, size);
-
-	// Do we need something similar to the nrfx fix fo the
-	// "can't set config #1, error -32" problem?
-
+int usbd_stm32_transmit(void *hpcd, uint8_t ep, void *data, size_t size) {
+	int ep_size = m_usbd_handle.ep_in[ep & 0x7F].ep_size;
+	int result = HAL_PCD_EP_Transmit(hpcd, ep, data,
+			size < ep_size ? size : ep_size);
 
 	return result;
 
 }
 
-int usbd_stm32_set_address(void *pcd_handle, uint8_t address) {
-	return HAL_PCD_SetAddress(pcd_handle, address);
+int usbd_stm32_set_address(void *hpcd, uint8_t address) {
+	return HAL_PCD_SetAddress(hpcd, address);
 }
 
-int usbd_stm32_ep_set_stall(void *pcd_handle, uint8_t ep) {
-	return HAL_PCD_EP_SetStall(pcd_handle, ep);
+int usbd_stm32_ep_set_stall(void *hpcd, uint8_t ep) {
+	return HAL_PCD_EP_SetStall(hpcd, ep);
 }
 
-int usbd_stm32_ep_clear_stall(void *pcd_handle, uint8_t ep) {
-	return HAL_PCD_EP_ClrStall(pcd_handle, ep);
+int usbd_stm32_ep_clear_stall(void *hpcd, uint8_t ep) {
+	return HAL_PCD_EP_ClrStall(hpcd, ep);
 }
 
-int usbd_stm32_ep_close(void *pcd_handle, uint8_t epnum) {
-	return HAL_PCD_EP_Close(pcd_handle, epnum);
+int usbd_stm32_ep_close(void *hpcd, uint8_t epnum) {
+	return HAL_PCD_EP_Close(hpcd, epnum);
 }
-int usbd_stm32_ep_open(void *pcd_handle, uint8_t epnum, uint8_t epsize,
+int usbd_stm32_ep_open(void *hpcd, uint8_t epnum, uint8_t epsize,
 		uint8_t eptype) {
+
+	//m_usbd_handle.ep_in[ep & 0x7F].
+
 	int status = 0;
-	status = HAL_PCD_EP_Open(pcd_handle, epnum, epsize, eptype);
-	if (status) return status;
-	status = HAL_PCD_EP_Flush(pcd_handle, epnum);
-	if (status) return status;
-	status = HAL_PCD_EP_ClrStall(pcd_handle, epnum);
-	if (status) return status;
+	status = HAL_PCD_EP_Open(hpcd, epnum, epsize, eptype);
+	if (status)
+		return status;
+	status = HAL_PCD_EP_Flush(hpcd, epnum);
+	if (status)
+		return status;
+	status = HAL_PCD_EP_ClrStall(hpcd, epnum);
+	if (status)
+		return status;
 	return status;
 }
 
