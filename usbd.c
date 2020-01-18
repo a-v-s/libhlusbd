@@ -61,7 +61,9 @@ void usbd_add_endpoint_in(usbd_handle_t *handle, uint8_t config, uint8_t epnum,
 	ep->bEndpointAddress = 0x80 | epnum;
 	ep->bInterval = epinterval;
 
-	handle->ep_out[0x7F & epnum].cb = cb;
+	handle->ep_in[0x7F & epnum].data_cb = cb;
+	handle->ep_in[0x7F & epnum].ep_size = epsize;
+	handle->ep_in[0x7F & epnum].ep_type = eptype;
 
 }
 
@@ -85,8 +87,9 @@ void usbd_add_endpoint_out(usbd_handle_t *handle, uint8_t config, uint8_t epnum,
 
 	handle->ep_out[0x7F & epnum].data_buffer = buffer;
 	handle->ep_out[0x7F & epnum].data_size = size;
-	handle->ep_out[0x7F & epnum].cb = cb;
-
+	handle->ep_out[0x7F & epnum].data_cb = cb;
+	handle->ep_out[0x7F & epnum].ep_size = epsize;
+	handle->ep_out[0x7F & epnum].ep_type = eptype;
 }
 
 
@@ -253,10 +256,14 @@ usbd_handler_result_t usbd_handle_standard_device_request(usbd_handle_t *handle,
 			for (int i = 1; i < USBD_ENDPOINTS_COUNT; i++) {
 				// TODO CONFIGURE ENDPOINTS
 
-				// THIS IS A TEMPORARY SOLUTION
-				// Open all endpoints in each direction
-				usbd_ep_open(handle,i,64,USB_EP_ATTR_TYPE_INTERRUPT);
-				usbd_ep_open(handle,0x80|i,64,USB_EP_ATTR_TYPE_INTERRUPT);
+				if (handle->ep_in[i].ep_size) {
+					usbd_ep_open(handle,0x80|i,handle->ep_in[i].ep_size,handle->ep_in[i].ep_type);
+				}
+				if (handle->ep_out[i].ep_size) {
+					usbd_ep_open(handle,i,handle->ep_out[i].ep_size,handle->ep_out[i].ep_type);
+				}
+
+
 			}
 
 			return RESULT_HANDLED;
@@ -407,13 +414,18 @@ int usbd_ep_close(usbd_handle_t *handle, uint8_t epnum) {
 }
 int usbd_ep_open(usbd_handle_t *handle, uint8_t epnum, uint8_t epsize,
 		uint8_t eptype) {
+
+/*
 	if (0x80 && epnum) {
 		// IN
 		handle->ep_in[epnum & 0x7F].ep_size=epsize;
+		handle->ep_in[epnum & 0x7F].ep_type=eptype;
 	} else {
 		// OUT
 		handle->ep_out[epnum & 0x7F].ep_size=epsize;
+		handle->ep_out[epnum & 0x7F].ep_type=eptype;
 	}
+*/
 	return handle->driver.ep_open(handle->driver.device_specific, epnum, epsize,
 			eptype);
 }

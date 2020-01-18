@@ -45,6 +45,11 @@ static usbd_handle_t m_usbd_handle = { .driver.device_specific = &m_hpcd,
 usbd_handle_t* usbd_init() {
 	GPIO_InitTypeDef GPIO_InitStruct;
 
+	// For now... we'll see how to make this neat later
+	static usbd_stm32_usbfs_v1_config config;
+	m_usbd_handle.driver.driver_config = &config;
+	config.PmaPos = PMAPOS_MIN;
+
 	usbd_demo_setup_descriptors(&m_usbd_handle);
 
 	__HAL_RCC_GPIOA_CLK_ENABLE();
@@ -94,18 +99,25 @@ usbd_handle_t* usbd_init() {
 	// Initialize LL Driver
 	HAL_PCD_Init(&m_hpcd);
 
-	// TODO: Can we integrate this with dynamic behavior?
-	// Eg. integrate this with open endpoint logic
-	int pma_buffer_pos = 0x18;
-	HAL_PCDEx_PMAConfig(&m_hpcd, 0x00, PCD_SNG_BUF, pma_buffer_pos);
-	pma_buffer_pos += 0x40;
-	HAL_PCDEx_PMAConfig(&m_hpcd, 0x80, PCD_SNG_BUF, pma_buffer_pos);
-	pma_buffer_pos += 0x40;
-	HAL_PCDEx_PMAConfig(&m_hpcd, 0x01, PCD_SNG_BUF, pma_buffer_pos);
-	pma_buffer_pos += 0x40;
-	HAL_PCDEx_PMAConfig(&m_hpcd, 0x81, PCD_SNG_BUF, pma_buffer_pos);
-	pma_buffer_pos += 0x40;
-	HAL_PCDEx_PMAConfig(&m_hpcd, 0x82, PCD_SNG_BUF, pma_buffer_pos);
+
+	 // TODO: Can we integrate this with dynamic behavior?
+	 // Eg. integrate this with open endpoint logic
+
+
+	int ep0size = m_usbd_handle.descriptor_device->bMaxPacketSize0;
+
+	 HAL_PCDEx_PMAConfig(&m_hpcd, 0x00, PCD_SNG_BUF, config.PmaPos);
+	 config.PmaPos += ep0size;
+	 HAL_PCDEx_PMAConfig(&m_hpcd, 0x80, PCD_SNG_BUF, config.PmaPos);
+	 config.PmaPos += ep0size;
+	 /*
+	 // Moved to accept config
+	 HAL_PCDEx_PMAConfig(&m_hpcd, 0x01, PCD_SNG_BUF, pma_buffer_pos);
+	 pma_buffer_pos += 0x40;
+	 HAL_PCDEx_PMAConfig(&m_hpcd, 0x81, PCD_SNG_BUF, pma_buffer_pos);
+	 pma_buffer_pos += 0x40;
+	 HAL_PCDEx_PMAConfig(&m_hpcd, 0x82, PCD_SNG_BUF, pma_buffer_pos);
+	 */
 
 	return &m_usbd_handle;
 
@@ -126,14 +138,10 @@ void HAL_PCD_DataOutStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 		HAL_PCD_EP_SetStall(hpcd, 0x80);
 		HAL_PCD_EP_SetStall(hpcd, 0x00);
 		HAL_PCD_EP_Transmit(hpcd, 0x00, NULL, 0);
-
-		//HAL_PCD_EP_ClrStall(hpcd, 0x80);
-		//HAL_PCD_EP_ClrStall(hpcd, 0x00);
-
 	} else {
 		// Callback, deliver received data to application
-		if (m_usbd_handle.ep_out[0x7F & epnum].cb)
-			m_usbd_handle.ep_out[0x7F & epnum].cb(hpcd->pData, epnum,
+		if (m_usbd_handle.ep_out[0x7F & epnum].data_cb)
+			m_usbd_handle.ep_out[0x7F & epnum].data_cb(hpcd->pData, epnum,
 					m_usbd_handle.ep_out[epnum & 0x7F].data_buffer,
 					received_amount);
 
@@ -147,87 +155,51 @@ void HAL_PCD_DataOutStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 
 void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 	// Transmission Complete Callback
-	// TODO: Continuation transmissions
-	// TODO: Range checking
-	if ((epnum & 0x7F) == 0x00) {
-		// Setup
+	// Range checking
+	if ((epnum & 0x7F) >= USBD_ENDPOINTS_COUNT)
+		return;
 
-		/*
-		 // Fix for "can't set config #1, error -32"
-		 HAL_PCD_EP_SetStall(hpcd, 0x80);
-		 HAL_PCD_EP_SetStall(hpcd, 0x00);
-		 HAL_PCD_EP_Transmit(hpcd, 0x00, NULL, 0);
+	// Is it Setup or Data
+	bool setup = ((epnum & 0x7F) == 0x00);
 
-		 HAL_PCD_EP_Receive(hpcd, 0x00, NULL, 0);
-		 */
+	// Is this a Multi Part transfer?
+	if (m_usbd_handle.ep_in[epnum & 0x7F].data_left
+			> m_usbd_handle.ep_in[epnum & 0x7F].ep_size) {
 
+		HAL_PCD_EP_Transmit(hpcd, epnum,
+				m_usbd_handle.ep_in[epnum & 0x7F].data_buffer
+						+ (m_usbd_handle.ep_in[epnum & 0x7F].data_size
+								- m_usbd_handle.ep_in[epnum & 0x7F].data_left),
+				m_usbd_handle.ep_in[epnum & 0x7F].ep_size);
 
+		m_usbd_handle.ep_in[epnum & 0x7F].data_left -= m_usbd_handle.ep_in[epnum
+				& 0x7F].ep_size;
 
-		// If the transfer is bigger then the endpoint size
-		if (m_usbd_handle.ep_in[epnum & 0x7F].data_left
-				> m_usbd_handle.ep_in[epnum & 0x7F].ep_size) {
-
-
-			HAL_PCD_EP_Transmit(hpcd, epnum,
-					m_usbd_handle.ep_in[epnum & 0x7F].data_buffer
-							+ (m_usbd_handle.ep_in[epnum & 0x7F].data_size
-									- m_usbd_handle.ep_in[epnum & 0x7F].data_left),
-					m_usbd_handle.ep_in[epnum & 0x7F].ep_size);
-
-			m_usbd_handle.ep_in[epnum & 0x7F].data_left -=
-								m_usbd_handle.ep_in[epnum & 0x7F].ep_size;
-
+		if (setup)
 			HAL_PCD_EP_Receive(hpcd, 0x00, NULL, 0);
-		} else {
-			size_t size = m_usbd_handle.ep_in[epnum & 0x7F].data_left;
+	} else {
+		size_t size = m_usbd_handle.ep_in[epnum & 0x7F].data_left;
+		if (setup) {
 			HAL_PCD_EP_SetStall(hpcd, 0x80);
 			HAL_PCD_EP_SetStall(hpcd, 0x00);
-
-
-			HAL_PCD_EP_Transmit(hpcd, epnum,
-								m_usbd_handle.ep_in[epnum & 0x7F].data_buffer
-										+ (m_usbd_handle.ep_in[epnum & 0x7F].data_size
-												- m_usbd_handle.ep_in[epnum & 0x7F].data_left),
-								size);
-
-			m_usbd_handle.ep_in[epnum & 0x7F].data_left = 0;
-
-			HAL_PCD_EP_Receive(hpcd, 0x00, NULL, 0);
 		}
 
-	} else {
-		/*
-		 // Data
-		 if (m_usbd_handle.ep_in[0x7F & epnum].cb)
-		 m_usbd_handle.ep_in[0x7F & epnum].cb(hpcd->pData, epnum,
-		 m_usbd_handle.ep_out[epnum & 0x7F].buffer,
-		 m_usbd_handle.ep_out[epnum & 0x7F].size);
-		 */
+		HAL_PCD_EP_Transmit(hpcd, epnum,
+				m_usbd_handle.ep_in[epnum & 0x7F].data_buffer
+						+ (m_usbd_handle.ep_in[epnum & 0x7F].data_size
+								- m_usbd_handle.ep_in[epnum & 0x7F].data_left),
+				size);
 
-		// If the transfer is bigger then the endpoint size
-		if (m_usbd_handle.ep_in[epnum & 0x7F].data_left
-				> m_usbd_handle.ep_in[epnum & 0x7F].ep_size) {
-			m_usbd_handle.ep_in[epnum & 0x7F].data_left -= m_usbd_handle.ep_in[epnum
-					& 0x7F].ep_size;
-			HAL_PCD_EP_Transmit(hpcd, epnum,
-					m_usbd_handle.ep_in[epnum & 0x7F].data_buffer
-							+ (m_usbd_handle.ep_in[epnum & 0x7F].data_size
-									- m_usbd_handle.ep_in[epnum & 0x7F].data_left),
-									m_usbd_handle.ep_in[epnum & 0x7F].ep_size);
+		m_usbd_handle.ep_in[epnum & 0x7F].data_left = 0;
 
+		if (setup) {
+			HAL_PCD_EP_Receive(hpcd, 0x00, NULL, 0);
 		} else {
-			// The transfer is done
-			if (!m_usbd_handle.ep_in[epnum & 0x7F].data_left) {
-				// The transfer size is (a multiple of) the ep size
-				// We need to send a ZLP
-				HAL_PCD_EP_Transmit(hpcd, epnum, NULL, 0);
-			}
-			if (m_usbd_handle.ep_in[0x7F & epnum].cb)
-				m_usbd_handle.ep_in[0x7F & epnum].cb(hpcd->pData, epnum,
+			if (m_usbd_handle.ep_in[0x7F & epnum].data_cb)
+				m_usbd_handle.ep_in[0x7F & epnum].data_cb(hpcd->pData, epnum,
 						m_usbd_handle.ep_out[epnum & 0x7F].data_buffer,
 						m_usbd_handle.ep_out[epnum & 0x7F].data_size);
 		}
-
 	}
 
 }
@@ -236,39 +208,39 @@ void HAL_PCD_SOFCallback(PCD_HandleTypeDef *hpcd) {
 }
 
 void HAL_PCD_ResetCallback(PCD_HandleTypeDef *hpcd) {
-	//USBD_LL_SetSpeed((USBD_HandleTypeDef*)hpcd->pData, USBD_SPEED_FULL);
-	/* Reset Device */
-	//USBD_LL_Reset((USBD_HandleTypeDef*)hpcd->pData);
+	// Feth Packet Size 0 from Device Descriptor
+	usbd_handle_t *handle = (usbd_handle_t*) hpcd->pData;
+	size_t epsize0 = handle->descriptor_device->bMaxPacketSize0;
+
 	// Open EP0 OUT
-	HAL_PCD_EP_Open(hpcd, 0x00, 64, 0x00);
+	HAL_PCD_EP_Open(hpcd, 0x00, epsize0, USB_EP_ATTR_TYPE_CONTROL);
 	HAL_PCD_EP_Flush(hpcd, 0x00);
 	HAL_PCD_EP_ClrStall(hpcd, 0x00);
-	m_usbd_handle.ep_out[0].ep_size = 64;
+	m_usbd_handle.ep_out[0].ep_size = epsize0;
 
 	// Open EP0 IN
-	HAL_PCD_EP_Open(hpcd, 0x80, 64, 0x00);
+	HAL_PCD_EP_Open(hpcd, 0x80, epsize0, USB_EP_ATTR_TYPE_CONTROL);
 	HAL_PCD_EP_Flush(hpcd, 0x80);
 	HAL_PCD_EP_ClrStall(hpcd, 0x80);
-	m_usbd_handle.ep_in[0].ep_size = 64;
+	m_usbd_handle.ep_in[0].ep_size = epsize0;
 
-	// TODO
-	// For now, open the endpoints here
-	// This should be moved to the SET_CONFIGURATION call
+	/*
+	 // Should be handled in set_configuration now
 
-	// Open EP1 OUT
-	HAL_PCD_EP_Open(hpcd, 0x01, 64, 0x02);
-	HAL_PCD_EP_Flush(hpcd, 0x01);
-	HAL_PCD_EP_ClrStall(hpcd, 0x01);
-	HAL_PCD_EP_Receive(hpcd, 0x01, m_usbd_handle.ep_out[1].data_buffer,
-			m_usbd_handle.ep_out[1].data_size);
-	m_usbd_handle.ep_out[1].ep_size = 64;
+	 // Open EP1 OUT
+	 HAL_PCD_EP_Open(hpcd, 0x01, 64, 0x02);
+	 HAL_PCD_EP_Flush(hpcd, 0x01);
+	 HAL_PCD_EP_ClrStall(hpcd, 0x01);
+	 HAL_PCD_EP_Receive(hpcd, 0x01, m_usbd_handle.ep_out[1].data_buffer,
+	 m_usbd_handle.ep_out[1].data_size);
+	 m_usbd_handle.ep_out[1].ep_size = 64;
 
-	// Open EP1 IN
-	HAL_PCD_EP_Open(hpcd, 0x81, 64, 0x02);
-	HAL_PCD_EP_Flush(hpcd, 0x81);
-	HAL_PCD_EP_ClrStall(hpcd, 0x81);
-	m_usbd_handle.ep_in[1].ep_size = 64;
-
+	 // Open EP1 IN
+	 HAL_PCD_EP_Open(hpcd, 0x81, 64, 0x02);
+	 HAL_PCD_EP_Flush(hpcd, 0x81);
+	 HAL_PCD_EP_ClrStall(hpcd, 0x81);
+	 m_usbd_handle.ep_in[1].ep_size = 64;
+	 */
 }
 
 void HAL_PCD_SuspendCallback(PCD_HandleTypeDef *hpcd) {
@@ -364,6 +336,9 @@ int usbd_stm32_ep_open(void *hpcd, uint8_t epnum, uint8_t epsize,
 		uint8_t eptype) {
 
 	//m_usbd_handle.ep_in[ep & 0x7F].
+	usbd_stm32_usbfs_v1_config* config = (usbd_stm32_usbfs_v1_config*)m_usbd_handle.driver.driver_config;
+	 HAL_PCDEx_PMAConfig(&m_hpcd, epnum, PCD_SNG_BUF, config->PmaPos);
+	 config->PmaPos += epsize;
 
 	int status = 0;
 	status = HAL_PCD_EP_Open(hpcd, epnum, epsize, eptype);

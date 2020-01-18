@@ -41,7 +41,9 @@ SOFTWARE.
 #include <stdint.h>
 #include <stdbool.h>
 
+#define PMAPOS_MIN	0x18
 typedef struct {
+	uint32_t		PmaPos;
 	GPIO_TypeDef* 	PullUpPort;
 	uint16_t		PullUpPin;
 	bool			PullUpInverted;
