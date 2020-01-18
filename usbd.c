@@ -1,34 +1,32 @@
 /*
 
-File: 		usbd.c
-Author:		André van Schoubroeck
-License:	MIT
+ File: 		usbd.c
+ Author:		André van Schoubroeck
+ License:	MIT
 
 
-MIT License
+ MIT License
 
-Copyright (c) 2018, 2019 André van Schoubroeck
+ Copyright (c) 2018, 2019 André van Schoubroeck
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
 
-*/
-
-
+ */
 
 // TODO:
 //		* Create libopencm3-like callback mechanisms that allows overriding.
@@ -40,8 +38,6 @@ SOFTWARE.
 // If we have Unicode Conversions enabled (UTF8 to UTF16)
 #include "ConvertUTF/ConvertUTF.h"
 #endif
-
-
 
 //
 void usbd_add_endpoint_in(usbd_handle_t *handle, uint8_t config, uint8_t epnum,
@@ -91,7 +87,6 @@ void usbd_add_endpoint_out(usbd_handle_t *handle, uint8_t config, uint8_t epnum,
 	handle->ep_out[0x7F & epnum].ep_size = epsize;
 	handle->ep_out[0x7F & epnum].ep_type = eptype;
 }
-
 
 usbd_handler_result_t usbd_handle_get_descriptor_request(usbd_handle_t *handle,
 		usb_setuprequest_t *req, void **buf, size_t *size) {
@@ -257,12 +252,13 @@ usbd_handler_result_t usbd_handle_standard_device_request(usbd_handle_t *handle,
 				// TODO CONFIGURE ENDPOINTS
 
 				if (handle->ep_in[i].ep_size) {
-					usbd_ep_open(handle,0x80|i,handle->ep_in[i].ep_size,handle->ep_in[i].ep_type);
+					usbd_ep_open(handle, 0x80 | i, handle->ep_in[i].ep_size,
+							handle->ep_in[i].ep_type);
 				}
 				if (handle->ep_out[i].ep_size) {
-					usbd_ep_open(handle,i,handle->ep_out[i].ep_size,handle->ep_out[i].ep_type);
+					usbd_ep_open(handle, i, handle->ep_out[i].ep_size,
+							handle->ep_out[i].ep_type);
 				}
-
 
 			}
 
@@ -394,7 +390,8 @@ int usbd_transmit(usbd_handle_t *handle, uint8_t ep, void *data, size_t size) {
 	handle->ep_in[ep & 0x7F].data_buffer = data;
 	handle->ep_in[ep & 0x7F].data_size = size;
 	if (handle->ep_in[ep & 0x7F].ep_size < size)
-		handle->ep_in[ep & 0x7F].data_left = size - handle->ep_in[ep & 0x7F].ep_size;
+		handle->ep_in[ep & 0x7F].data_left = size
+				- handle->ep_in[ep & 0x7F].ep_size;
 	else
 		handle->ep_in[ep & 0x7F].data_left = 0;
 	return handle->driver.transmit(handle->driver.device_specific, ep, data,
@@ -415,17 +412,17 @@ int usbd_ep_close(usbd_handle_t *handle, uint8_t epnum) {
 int usbd_ep_open(usbd_handle_t *handle, uint8_t epnum, uint8_t epsize,
 		uint8_t eptype) {
 
-/*
-	if (0x80 && epnum) {
-		// IN
-		handle->ep_in[epnum & 0x7F].ep_size=epsize;
-		handle->ep_in[epnum & 0x7F].ep_type=eptype;
-	} else {
-		// OUT
-		handle->ep_out[epnum & 0x7F].ep_size=epsize;
-		handle->ep_out[epnum & 0x7F].ep_type=eptype;
-	}
-*/
+	/*
+	 if (0x80 && epnum) {
+	 // IN
+	 handle->ep_in[epnum & 0x7F].ep_size=epsize;
+	 handle->ep_in[epnum & 0x7F].ep_type=eptype;
+	 } else {
+	 // OUT
+	 handle->ep_out[epnum & 0x7F].ep_size=epsize;
+	 handle->ep_out[epnum & 0x7F].ep_type=eptype;
+	 }
+	 */
 	return handle->driver.ep_open(handle->driver.device_specific, epnum, epsize,
 			eptype);
 }

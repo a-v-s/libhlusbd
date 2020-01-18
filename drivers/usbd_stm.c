@@ -99,24 +99,23 @@ usbd_handle_t* usbd_init() {
 	// Initialize LL Driver
 	HAL_PCD_Init(&m_hpcd);
 
-
-	 // TODO: Can we integrate this with dynamic behavior?
-	 // Eg. integrate this with open endpoint logic
-
+	// TODO: Can we integrate this with dynamic behavior?
+	// Eg. integrate this with open endpoint logic
 
 	int ep0size = m_usbd_handle.descriptor_device->bMaxPacketSize0;
 
-	 HAL_PCDEx_PMAConfig(&m_hpcd, 0x00, PCD_SNG_BUF, config.PmaPos);
-	 config.PmaPos += ep0size;
-	 HAL_PCDEx_PMAConfig(&m_hpcd, 0x80, PCD_SNG_BUF, config.PmaPos);
-	 config.PmaPos += ep0size;
-	 /*
-	 // Moved to accept config
-	 HAL_PCDEx_PMAConfig(&m_hpcd, 0x01, PCD_SNG_BUF, pma_buffer_pos);
-	 pma_buffer_pos += 0x40;
-	 HAL_PCDEx_PMAConfig(&m_hpcd, 0x81, PCD_SNG_BUF, pma_buffer_pos);
-	 pma_buffer_pos += 0x40;
-	 HAL_PCDEx_PMAConfig(&m_hpcd, 0x82, PCD_SNG_BUF, pma_buffer_pos);
+	HAL_PCDEx_PMAConfig(&m_hpcd, 0x00, PCD_SNG_BUF, config.PmaPos);
+	config.PmaPos += ep0size;
+	HAL_PCDEx_PMAConfig(&m_hpcd, 0x80, PCD_SNG_BUF, config.PmaPos);
+	config.PmaPos += ep0size;
+
+	/*
+	 // Moved to Open EP
+	 HAL_PCDEx_PMAConfig(&m_hpcd, 0x01, PCD_SNG_BUF, config.PmaPos);
+	 config.PmaPos += 0x40;
+	 HAL_PCDEx_PMAConfig(&m_hpcd, 0x81, PCD_SNG_BUF, config.PmaPos);
+	 config.PmaPos += 0x40;
+	 HAL_PCDEx_PMAConfig(&m_hpcd, 0x82, PCD_SNG_BUF, config.PmaPos);
 	 */
 
 	return &m_usbd_handle;
@@ -334,11 +333,19 @@ int usbd_stm32_ep_close(void *hpcd, uint8_t epnum) {
 }
 int usbd_stm32_ep_open(void *hpcd, uint8_t epnum, uint8_t epsize,
 		uint8_t eptype) {
+	// We should add some checks so we do not allocate memory
+	// for an endpoint already configured. Eg, when there is a call to open close open.
+	// Also, investigate if it is worth adding double buffering support for the PMA
+	usbd_stm32_usbfs_v1_config *config =
+			(usbd_stm32_usbfs_v1_config*) m_usbd_handle.driver.driver_config;
+	HAL_PCDEx_PMAConfig(&m_hpcd, epnum, PCD_SNG_BUF, config->PmaPos);
+	config->PmaPos += epsize;
 
-	//m_usbd_handle.ep_in[ep & 0x7F].
-	usbd_stm32_usbfs_v1_config* config = (usbd_stm32_usbfs_v1_config*)m_usbd_handle.driver.driver_config;
-	 HAL_PCDEx_PMAConfig(&m_hpcd, epnum, PCD_SNG_BUF, config->PmaPos);
-	 config->PmaPos += epsize;
+	// Prepare to receive data to the assigned buffer
+	if (!(epnum & 0x80))
+		HAL_PCD_EP_Receive(hpcd, epnum,
+				m_usbd_handle.ep_out[epnum & 0x7F].data_buffer,
+				m_usbd_handle.ep_out[epnum & 0x7F].data_size);
 
 	int status = 0;
 	status = HAL_PCD_EP_Open(hpcd, epnum, epsize, eptype);
