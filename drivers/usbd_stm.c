@@ -109,14 +109,12 @@ usbd_handle_t* usbd_init() {
 	HAL_PCDEx_PMAConfig(&m_hpcd, 0x80, PCD_SNG_BUF, config.PmaPos);
 	config.PmaPos += ep0size;
 
-	/*
-	 // Moved to Open EP
-	 HAL_PCDEx_PMAConfig(&m_hpcd, 0x01, PCD_SNG_BUF, config.PmaPos);
-	 config.PmaPos += 0x40;
-	 HAL_PCDEx_PMAConfig(&m_hpcd, 0x81, PCD_SNG_BUF, config.PmaPos);
-	 config.PmaPos += 0x40;
-	 HAL_PCDEx_PMAConfig(&m_hpcd, 0x82, PCD_SNG_BUF, config.PmaPos);
-	 */
+	// Moved to Open EP
+	HAL_PCDEx_PMAConfig(&m_hpcd, 0x01, PCD_SNG_BUF, config.PmaPos);
+	config.PmaPos += 0x40;
+	HAL_PCDEx_PMAConfig(&m_hpcd, 0x81, PCD_SNG_BUF, config.PmaPos);
+	config.PmaPos += 0x40;
+	HAL_PCDEx_PMAConfig(&m_hpcd, 0x82, PCD_SNG_BUF, config.PmaPos);
 
 	return &m_usbd_handle;
 
@@ -163,7 +161,7 @@ void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 
 	// Is this a Multi Part transfer?
 	if (m_usbd_handle.ep_in[epnum & 0x7F].data_left
-			> m_usbd_handle.ep_in[epnum & 0x7F].ep_size) {
+			>= m_usbd_handle.ep_in[epnum & 0x7F].ep_size) {
 
 		HAL_PCD_EP_Transmit(hpcd, epnum,
 				m_usbd_handle.ep_in[epnum & 0x7F].data_buffer
@@ -174,14 +172,14 @@ void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 		m_usbd_handle.ep_in[epnum & 0x7F].data_left -= m_usbd_handle.ep_in[epnum
 				& 0x7F].ep_size;
 
-		if (setup)
+		if (setup) {
 			HAL_PCD_EP_Receive(hpcd, 0x00, NULL, 0);
+			// Fix the long string errors
+			HAL_PCD_EP_SetStall(hpcd, 0x80);
+		}
+
 	} else {
 		size_t size = m_usbd_handle.ep_in[epnum & 0x7F].data_left;
-		if (setup) {
-			HAL_PCD_EP_SetStall(hpcd, 0x80);
-			HAL_PCD_EP_SetStall(hpcd, 0x00);
-		}
 
 		HAL_PCD_EP_Transmit(hpcd, epnum,
 				m_usbd_handle.ep_in[epnum & 0x7F].data_buffer
@@ -193,6 +191,7 @@ void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 
 		if (setup) {
 			HAL_PCD_EP_Receive(hpcd, 0x00, NULL, 0);
+
 		} else {
 			if (m_usbd_handle.ep_in[0x7F & epnum].data_cb)
 				m_usbd_handle.ep_in[0x7F & epnum].data_cb(hpcd->pData, epnum,
@@ -309,6 +308,8 @@ void SysTick_Handler(void) {
 
 int usbd_stm32_transmit(void *hpcd, uint8_t ep, void *data, size_t size) {
 	int ep_size = m_usbd_handle.ep_in[ep & 0x7F].ep_size;
+	m_usbd_handle.ep_in[ep & 0x7F].data_buffer = data;
+	m_usbd_handle.ep_in[ep & 0x7F].data_size = size;
 	int result = HAL_PCD_EP_Transmit(hpcd, ep, data,
 			size < ep_size ? size : ep_size);
 
@@ -336,10 +337,13 @@ int usbd_stm32_ep_open(void *hpcd, uint8_t epnum, uint8_t epsize,
 	// We should add some checks so we do not allocate memory
 	// for an endpoint already configured. Eg, when there is a call to open close open.
 	// Also, investigate if it is worth adding double buffering support for the PMA
-	usbd_stm32_usbfs_v1_config *config =
-			(usbd_stm32_usbfs_v1_config*) m_usbd_handle.driver.driver_config;
-	HAL_PCDEx_PMAConfig(&m_hpcd, epnum, PCD_SNG_BUF, config->PmaPos);
-	config->PmaPos += epsize;
+
+	/*
+	 usbd_stm32_usbfs_v1_config *config =
+	 (usbd_stm32_usbfs_v1_config*) m_usbd_handle.driver.driver_config;
+	 HAL_PCDEx_PMAConfig(&m_hpcd, epnum, PCD_SNG_BUF, config->PmaPos);
+	 config->PmaPos += epsize;
+	 */
 
 	// Prepare to receive data to the assigned buffer
 	if (!(epnum & 0x80))
