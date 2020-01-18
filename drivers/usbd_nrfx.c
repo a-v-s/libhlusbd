@@ -56,14 +56,14 @@ static void nrfx_openusb_event_handler(nrfx_usbd_evt_t const *const p_event) {
         switch (p_event->data.eptransfer.status) {
         case NRFX_USBD_EP_WAITING: {
 
-            if (m_usbd_handle.ep_out[0x7F && p_event->data.eptransfer.ep].buffer
-                    && m_usbd_handle.ep_out[0x7F && p_event->data.eptransfer.ep].size) {
+            if (m_usbd_handle.ep_out[0x7F && p_event->data.eptransfer.ep].data_buffer
+                    && m_usbd_handle.ep_out[0x7F && p_event->data.eptransfer.ep].data_size) {
                 static nrfx_usbd_transfer_t transfer = { 0 };
 
                 transfer.p_data.rx = m_usbd_handle.ep_out[0x7F
-                        && p_event->data.eptransfer.ep].buffer;
+                        && p_event->data.eptransfer.ep].data_buffer;
                 transfer.size = m_usbd_handle.ep_out[0x7F
-                        && p_event->data.eptransfer.ep].size;
+                        && p_event->data.eptransfer.ep].data_size;
                 nrfx_usbd_ep_transfer(p_event->data.eptransfer.ep, &transfer);
 
             }
@@ -82,13 +82,13 @@ static void nrfx_openusb_event_handler(nrfx_usbd_evt_t const *const p_event) {
                         nrfx_usbd_setup_clear();
                     }
 
-                    if (m_usbd_handle.ep_in[0x7F & p_event->data.eptransfer.ep].cb)
-                        m_usbd_handle.ep_in[0x7F & p_event->data.eptransfer.ep].cb(
+                    if (m_usbd_handle.ep_in[0x7F & p_event->data.eptransfer.ep].data_cb)
+                        m_usbd_handle.ep_in[0x7F & p_event->data.eptransfer.ep].data_cb(
                                 &m_usbd_handle, p_event->data.eptransfer.ep,
                                 m_usbd_handle.ep_out[0x7F
-                                        & p_event->data.eptransfer.ep].buffer,
+                                        & p_event->data.eptransfer.ep].data_buffer,
                                 m_usbd_handle.ep_out[0x7F
-                                        & p_event->data.eptransfer.ep].size);
+                                        & p_event->data.eptransfer.ep].data_size);
 
                 } else {
                     // OUT
@@ -97,10 +97,10 @@ static void nrfx_openusb_event_handler(nrfx_usbd_evt_t const *const p_event) {
                         nrfx_usbd_setup_clear();
                     }
 
-                    if (m_usbd_handle.ep_out[p_event->data.eptransfer.ep].cb)
-                        m_usbd_handle.ep_out[p_event->data.eptransfer.ep].cb(
+                    if (m_usbd_handle.ep_out[p_event->data.eptransfer.ep].data_cb)
+                        m_usbd_handle.ep_out[p_event->data.eptransfer.ep].data_cb(
                                 &m_usbd_handle, p_event->data.eptransfer.ep,
-                                m_usbd_handle.ep_out[p_event->data.eptransfer.ep].buffer,
+                                m_usbd_handle.ep_out[p_event->data.eptransfer.ep].data_buffer,
                                 nrfx_usbd_epout_size_get(
                                         p_event->data.eptransfer.ep));
 
@@ -148,12 +148,12 @@ int usbd_init(void) {
 }
 
 int usbd_nrfx_transmit(void *pcd_handle, uint8_t ep, void *data, size_t size) {
-    m_usbd_handle.ep_in[ep & 0x7F].buffer = data;
-    m_usbd_handle.ep_in[ep & 0x7F].size = size;
+    m_usbd_handle.ep_in[ep & 0x7F].data_buffer = data;
+    m_usbd_handle.ep_in[ep & 0x7F].data_size = size;
 
     static nrfx_usbd_transfer_t transfer;
-    transfer.p_data.tx = m_usbd_handle.ep_in[ep & 0x7F].buffer;
-    transfer.size = m_usbd_handle.ep_in[ep & 0x7F].size;
+    transfer.p_data.tx = m_usbd_handle.ep_in[ep & 0x7F].data_buffer;
+    transfer.size = m_usbd_handle.ep_in[ep & 0x7F].data_size;
     int result = nrfx_usbd_ep_transfer(ep | 0x80, &transfer);
 
     // Fix for "can't set config #1, error -110"
