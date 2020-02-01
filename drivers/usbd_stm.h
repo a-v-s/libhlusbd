@@ -31,12 +31,27 @@ SOFTWARE.
 #ifndef __USBD_STM__
 #define __USBD_STM__
 
-//#include "stm32f1xx_hal_def.h"
-#include "stm32f1xx_hal.h"
+// Todo MCU family defines: I had this before my hard disk crashed
+// For the intial test, just check for these two
 
+#if defined STM32F103xB
+#include "stm32f1xx_hal.h"
 #include "stm32f1xx_ll_usb.h"
 #include "stm32f1xx_hal_pcd.h"
 #include "stm32f1xx_hal_pcd_ex.h"
+#elif defined STM32F303xC
+#include "stm32f3xx_hal.h"
+#include "stm32f3xx_ll_usb.h"
+#include "stm32f3xx_hal_pcd.h"
+#include "stm32f3xx_hal_pcd_ex.h"
+#elif defined STM32F401xC
+#include "stm32f4xx_hal.h"
+#include "stm32f4xx_ll_usb.h"
+#include "stm32f4xx_hal_pcd.h"
+#include "stm32f4xx_hal_pcd_ex.h"
+#else
+#error "STM32 FAMILY NOT DEFINED!"
+#endif
 
 #include <stdint.h>
 #include <stdbool.h>

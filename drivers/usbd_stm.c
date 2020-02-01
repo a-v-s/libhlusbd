@@ -56,13 +56,23 @@ usbd_handle_t* usbd_init() {
 	__HAL_RCC_USB_CLK_ENABLE();
 
 	// TODO: PullUp / Reset Behaviour
-
+#if defined STM32F103xB
 	// Configure USB DM/DP pins
 	GPIO_InitStruct.Pin = (GPIO_PIN_11 | GPIO_PIN_12);
 	GPIO_InitStruct.Mode = GPIO_MODE_AF_INPUT;
 	GPIO_InitStruct.Pull = GPIO_PULLUP;
 	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
 	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+#elif defined STM32F303xC
+	GPIO_InitStruct.Pin = (GPIO_PIN_11 | GPIO_PIN_12);
+	GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+	GPIO_InitStruct.Pull = GPIO_PULLUP;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+	GPIO_InitStruct.Alternate = GPIO_AF14_USB;
+	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+
+#endif
 
 	/* // TODO: Low Power Support
 	 if (hpcd->Init.low_power_enable == 1) {
@@ -79,11 +89,13 @@ usbd_handle_t* usbd_init() {
 	 }
 	 */
 
-	// Set USB Interrupt priority
+#if defined STM32F103xB
 	HAL_NVIC_SetPriority(USB_LP_CAN1_RX0_IRQn, 5, 0);
-
-	// Enable USB Interrupt
 	HAL_NVIC_EnableIRQ(USB_LP_CAN1_RX0_IRQn);
+#elif defined STM32F303xC
+	HAL_NVIC_SetPriority(USB_LP_CAN_RX0_IRQn, 5, 0);
+	HAL_NVIC_EnableIRQ(USB_LP_CAN_RX0_IRQn);
+#endif
 
 	// What are they?
 	// Set LL Driver parameters
@@ -294,9 +306,20 @@ void HAL_PCD_DisconnectCallback(PCD_HandleTypeDef *hpcd) {
 	// Can/should we do pullup/reset behaviour here?
 }
 
+
+#if defined STM32F103xB
 void USB_LP_CAN1_RX0_IRQHandler(void) {
 	HAL_PCD_IRQHandler(&m_hpcd);
 }
+#elif defined STM32F303xC
+void USB_LP_CAN_RX0_IRQHandler(void) {
+	HAL_PCD_IRQHandler(&m_hpcd);
+}
+
+#endif
+
+
+
 
 void USBWakeUp_IRQHandler(void) {
 	__HAL_USB_WAKEUP_EXTI_CLEAR_FLAG();
