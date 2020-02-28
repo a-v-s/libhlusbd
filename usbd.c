@@ -165,11 +165,22 @@ usbd_handler_result_t usbd_handle_get_descriptor_request(usbd_handle_t *handle,
 			*buf = handle->descriptor_string[index];
 			*size = handle->descriptor_string[index]->bLength;
 			return RESULT_HANDLED;
-
 		}
 
 		break;
 	}
+
+	case 0x22: {
+		// HID REPORT
+		// Extracted this hid from an existing CMSIS-DAP DEVICE
+		static uint8_t usb_hid_report[] = { 0x06, 0x00, 0xFF, 0x09, 0x01, 0xA1, 0x01, 0x15, 0x00,
+				0x26, 0xFF, 0x00, 0x75, 0x08, 0x95, 0x40, 0x09, 0x01, 0x81, 0x02, 0x95,
+				0x40, 0x09, 0x01, 0x91, 0x02, 0x95, 0x01, 0x09, 0x01, 0xB1, 0x02, 0xC0 };
+		*buf = usb_hid_report;
+		*size = sizeof(usb_hid_report);
+		return RESULT_HANDLED;
+	}
+
 	default:
 		// Unsupported descriptor requested
 		//usbd_ep_set_stall(handle, 0x80); // Stall Endpoint 0x80
@@ -279,6 +290,14 @@ usbd_handler_result_t usbd_handle_standard_interface_request(
 		usbd_handle_t *handle, usb_setuprequest_t *req, void **buf, size_t *len) {
 
 	switch (req->bRequest) {
+
+	// For HID...
+	case USB_REQ_GET_DESCRIPTOR: {
+		return usbd_handle_get_descriptor_request(handle, req, buf, len);
+	}
+
+
+
 	case USB_REQ_GET_STATUS: {
 
 		// If the request is directed to an interface (check bmRequestType)
