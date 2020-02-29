@@ -306,7 +306,6 @@ void HAL_PCD_DisconnectCallback(PCD_HandleTypeDef *hpcd) {
 	// Can/should we do pullup/reset behaviour here?
 }
 
-
 #if defined STM32F103xB
 void USB_LP_CAN1_RX0_IRQHandler(void) {
 	HAL_PCD_IRQHandler(&m_hpcd);
@@ -317,9 +316,6 @@ void USB_LP_CAN_RX0_IRQHandler(void) {
 }
 
 #endif
-
-
-
 
 void USBWakeUp_IRQHandler(void) {
 	__HAL_USB_WAKEUP_EXTI_CLEAR_FLAG();
@@ -368,11 +364,13 @@ int usbd_stm32_ep_open(void *hpcd, uint8_t epnum, uint8_t epsize,
 	 config->PmaPos += epsize;
 	 */
 
-	// Prepare to receive data to the assigned buffer
-	if (!(epnum & 0x80))
-		HAL_PCD_EP_Receive(hpcd, epnum,
-				m_usbd_handle.ep_out[epnum & 0x7F].data_buffer,
-				m_usbd_handle.ep_out[epnum & 0x7F].data_size);
+	/*
+	 // Prepare to receive data to the assigned buffer
+	 if (!(epnum & 0x80))
+	 HAL_PCD_EP_Receive(hpcd, epnum,
+	 m_usbd_handle.ep_out[epnum & 0x7F].data_buffer,
+	 m_usbd_handle.ep_out[epnum & 0x7F].data_size);
+	 */
 
 	int status = 0;
 	status = HAL_PCD_EP_Open(hpcd, epnum, epsize, eptype);
@@ -384,6 +382,13 @@ int usbd_stm32_ep_open(void *hpcd, uint8_t epnum, uint8_t epsize,
 	status = HAL_PCD_EP_ClrStall(hpcd, epnum);
 	if (status)
 		return status;
+
+	// Prepare to receive data to the assigned buffer
+	if (!(epnum & 0x80))
+		status = HAL_PCD_EP_Receive(hpcd, epnum,
+				m_usbd_handle.ep_out[epnum & 0x7F].data_buffer,
+				m_usbd_handle.ep_out[epnum & 0x7F].data_size);
+
 	return status;
 }
 
