@@ -34,6 +34,7 @@ SOFTWARE.
 // Todo MCU family defines: I had this before my hard disk crashed
 // For the intial test, just check for these two
 
+/*
 #if defined STM32F103xB
 #include "stm32f1xx_hal.h"
 #include "stm32f1xx_ll_usb.h"
@@ -52,6 +53,9 @@ SOFTWARE.
 #else
 #error "STM32 FAMILY NOT DEFINED!"
 #endif
+*/
+#include "hal.h"
+
 
 #include <stdint.h>
 #include <stdbool.h>

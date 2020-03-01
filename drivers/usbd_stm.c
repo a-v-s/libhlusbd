@@ -70,7 +70,13 @@ usbd_handle_t* usbd_init() {
 	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
 	GPIO_InitStruct.Alternate = GPIO_AF14_USB;
 	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
+#elif defined STM32F072xB
+	GPIO_InitStruct.Pin = (GPIO_PIN_11 | GPIO_PIN_12);
+		GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+		GPIO_InitStruct.Pull = GPIO_PULLUP;
+		GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+		GPIO_InitStruct.Alternate = GPIO_AF2_USB;
+		HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
 #endif
 
@@ -89,12 +95,15 @@ usbd_handle_t* usbd_init() {
 	 }
 	 */
 
-#if defined STM32F103xB
+#if defined STM32F1
 	HAL_NVIC_SetPriority(USB_LP_CAN1_RX0_IRQn, 5, 0);
 	HAL_NVIC_EnableIRQ(USB_LP_CAN1_RX0_IRQn);
-#elif defined STM32F303xC
+#elif defined STM32F3
 	HAL_NVIC_SetPriority(USB_LP_CAN_RX0_IRQn, 5, 0);
 	HAL_NVIC_EnableIRQ(USB_LP_CAN_RX0_IRQn);
+#elif defined STM32F0
+	HAL_NVIC_SetPriority(USB_IRQn, 5, 0);
+	HAL_NVIC_EnableIRQ(USB_IRQn);
 #endif
 
 	// What are they?
@@ -110,6 +119,10 @@ usbd_handle_t* usbd_init() {
 
 	// Initialize LL Driver
 	HAL_PCD_Init(&m_hpcd);
+
+	// Required call on usbfsv2 (stm32f0)?
+	// But not on usbfs v1 (stm32f1)?
+	HAL_PCD_Start(&m_hpcd);
 
 	// TODO: Can we integrate this with dynamic behavior?
 	// Eg. integrate this with open endpoint logic
@@ -306,11 +319,15 @@ void HAL_PCD_DisconnectCallback(PCD_HandleTypeDef *hpcd) {
 	// Can/should we do pullup/reset behaviour here?
 }
 
-#if defined STM32F103xB
+#if defined STM32F0
+void USB_IRQHandler(void) {
+	HAL_PCD_IRQHandler(&m_hpcd);
+}
+#elif defined STM32F1
 void USB_LP_CAN1_RX0_IRQHandler(void) {
 	HAL_PCD_IRQHandler(&m_hpcd);
 }
-#elif defined STM32F303xC
+#elif defined STM32F3
 void USB_LP_CAN_RX0_IRQHandler(void) {
 	HAL_PCD_IRQHandler(&m_hpcd);
 }
