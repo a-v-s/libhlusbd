@@ -53,31 +53,44 @@ usbd_handle_t* usbd_init() {
 	usbd_demo_setup_descriptors(&m_usbd_handle);
 
 	__HAL_RCC_GPIOA_CLK_ENABLE();
+
+#if defined (USB) 
 	__HAL_RCC_USB_CLK_ENABLE();
+#elif defined (USB_OTG_FS)
+	__HAL_RCC_USB_OTG_FS_CLK_ENABLE();
+#endif
 
 	// TODO: PullUp / Reset Behaviour
-#if defined STM32F103xB
+#if defined STM32F1
 	// Configure USB DM/DP pins
 	GPIO_InitStruct.Pin = (GPIO_PIN_11 | GPIO_PIN_12);
 	GPIO_InitStruct.Mode = GPIO_MODE_AF_INPUT;
 	GPIO_InitStruct.Pull = GPIO_PULLUP;
 	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
 	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-#elif defined STM32F303xC
+#elif defined STM32F3
 	GPIO_InitStruct.Pin = (GPIO_PIN_11 | GPIO_PIN_12);
 	GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
 	GPIO_InitStruct.Pull = GPIO_PULLUP;
 	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
 	GPIO_InitStruct.Alternate = GPIO_AF14_USB;
 	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-#elif defined STM32F072xB
+#elif defined STM32F0
 	GPIO_InitStruct.Pin = (GPIO_PIN_11 | GPIO_PIN_12);
-		GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-		GPIO_InitStruct.Pull = GPIO_PULLUP;
-		GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-		GPIO_InitStruct.Alternate = GPIO_AF2_USB;
-		HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+	GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+	GPIO_InitStruct.Pull = GPIO_PULLUP;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+	GPIO_InitStruct.Alternate = GPIO_AF2_USB;
+	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+#elif defined STM32F4
+    GPIO_InitStruct.Pin = GPIO_PIN_11 | GPIO_PIN_12;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    GPIO_InitStruct.Alternate = GPIO_AF10_OTG_FS;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
+    // $(ucdev)/ext/STM32CubeF4/Projects/STM32F401-Discovery/Demonstrations/Src/usbd_conf.c:250
 #endif
 
 	/* // TODO: Low Power Support
@@ -95,7 +108,10 @@ usbd_handle_t* usbd_init() {
 	 }
 	 */
 
-#if defined STM32F1
+#if defined (USB_OTG_FS)
+	HAL_NVIC_SetPriority(OTG_FS_IRQn, 5, 0);
+	HAL_NVIC_EnableIRQ(OTG_FS_IRQn);
+#elif defined STM32F1
 	HAL_NVIC_SetPriority(USB_LP_CAN1_RX0_IRQn, 5, 0);
 	HAL_NVIC_EnableIRQ(USB_LP_CAN1_RX0_IRQn);
 #elif defined STM32F3
@@ -106,13 +122,18 @@ usbd_handle_t* usbd_init() {
 	HAL_NVIC_EnableIRQ(USB_IRQn);
 #endif
 
-	// What are they?
-	// Set LL Driver parameters
+
+
+#if defined (USB) 
 	m_hpcd.Instance = USB;
-	m_hpcd.Init.dev_endpoints = 8;
+#elif defined (USB_OTG_FS)
+	m_hpcd.Instance = USB_OTG_FS;
+#endif
+	m_hpcd.Init.dev_endpoints = 8;	// Does this value differ per family?
 	m_hpcd.Init.phy_itface = PCD_PHY_EMBEDDED;
 	m_hpcd.Init.speed = PCD_SPEED_FULL;
 	m_hpcd.Init.low_power_enable = 0;
+
 
 	m_hpcd.pData = &m_usbd_handle;
 	m_usbd_handle.driver.device_specific = &m_hpcd;
@@ -120,26 +141,32 @@ usbd_handle_t* usbd_init() {
 	// Initialize LL Driver
 	HAL_PCD_Init(&m_hpcd);
 
-	// Required call on usbfsv2 (stm32f0)?
-	// But not on usbfs v1 (stm32f1)?
-	HAL_PCD_Start(&m_hpcd);
 
-	// TODO: Can we integrate this with dynamic behavior?
-	// Eg. integrate this with open endpoint logic
 
 	int ep0size = m_usbd_handle.descriptor_device->bMaxPacketSize0;
 
+// TODO Verify: This does not apply to OTG
+#if defined (USB) 
 	HAL_PCDEx_PMAConfig(&m_hpcd, 0x00, PCD_SNG_BUF, config.PmaPos);
 	config.PmaPos += ep0size;
 	HAL_PCDEx_PMAConfig(&m_hpcd, 0x80, PCD_SNG_BUF, config.PmaPos);
 	config.PmaPos += ep0size;
+#elif defined (USB_OTG_FS)
+	  HAL_PCDEx_SetRxFiFo(&m_hpcd, 0x80);
+	  HAL_PCDEx_SetTxFiFo(&m_hpcd, 0, ep0size);
+	#endif
+
+
+	  HAL_PCD_Start(&m_hpcd);
 
 	// Moved to Open EP
+/*
 	HAL_PCDEx_PMAConfig(&m_hpcd, 0x01, PCD_SNG_BUF, config.PmaPos);
 	config.PmaPos += 0x40;
 	HAL_PCDEx_PMAConfig(&m_hpcd, 0x81, PCD_SNG_BUF, config.PmaPos);
 	config.PmaPos += 0x40;
 	HAL_PCDEx_PMAConfig(&m_hpcd, 0x82, PCD_SNG_BUF, config.PmaPos);
+*/
 
 	return &m_usbd_handle;
 
@@ -217,6 +244,8 @@ void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 		if (setup) {
 			HAL_PCD_EP_Receive(hpcd, 0x00, NULL, 0);
 
+
+
 		} else {
 			if (m_usbd_handle.ep_in[0x7F & epnum].data_cb)
 				m_usbd_handle.ep_in[0x7F & epnum].data_cb(hpcd->pData, epnum,
@@ -240,6 +269,9 @@ void HAL_PCD_ResetCallback(PCD_HandleTypeDef *hpcd) {
 	HAL_PCD_EP_Flush(hpcd, 0x00);
 	HAL_PCD_EP_ClrStall(hpcd, 0x00);
 	m_usbd_handle.ep_out[0].ep_size = epsize0;
+
+
+
 
 	// Open EP0 IN
 	HAL_PCD_EP_Open(hpcd, 0x80, epsize0, USB_EP_ATTR_TYPE_CONTROL);
@@ -319,28 +351,7 @@ void HAL_PCD_DisconnectCallback(PCD_HandleTypeDef *hpcd) {
 	// Can/should we do pullup/reset behaviour here?
 }
 
-#if defined STM32F0
-void USB_IRQHandler(void) {
-	HAL_PCD_IRQHandler(&m_hpcd);
-}
-#elif defined STM32F1
-void USB_LP_CAN1_RX0_IRQHandler(void) {
-	HAL_PCD_IRQHandler(&m_hpcd);
-}
-#elif defined STM32F3
-void USB_LP_CAN_RX0_IRQHandler(void) {
-	HAL_PCD_IRQHandler(&m_hpcd);
-}
 
-#endif
-
-void USBWakeUp_IRQHandler(void) {
-	__HAL_USB_WAKEUP_EXTI_CLEAR_FLAG();
-}
-
-void SysTick_Handler(void) {
-	HAL_IncTick();
-}
 
 int usbd_stm32_transmit(void *hpcd, uint8_t ep, void *data, size_t size) {
 	int ep_size = m_usbd_handle.ep_in[ep & 0x7F].ep_size;
@@ -374,20 +385,18 @@ int usbd_stm32_ep_open(void *hpcd, uint8_t epnum, uint8_t epsize,
 	// for an endpoint already configured. Eg, when there is a call to open close open.
 	// Also, investigate if it is worth adding double buffering support for the PMA
 
-	/*
-	 usbd_stm32_usbfs_v1_config *config =
-	 (usbd_stm32_usbfs_v1_config*) m_usbd_handle.driver.driver_config;
-	 HAL_PCDEx_PMAConfig(&m_hpcd, epnum, PCD_SNG_BUF, config->PmaPos);
-	 config->PmaPos += epsize;
-	 */
 
-	/*
-	 // Prepare to receive data to the assigned buffer
-	 if (!(epnum & 0x80))
-	 HAL_PCD_EP_Receive(hpcd, epnum,
-	 m_usbd_handle.ep_out[epnum & 0x7F].data_buffer,
-	 m_usbd_handle.ep_out[epnum & 0x7F].data_size);
-	 */
+#if defined (USB)
+	usbd_stm32_usbfs_v1_config *config = (usbd_stm32_usbfs_v1_config*) m_usbd_handle.driver.driver_config;
+	HAL_PCDEx_PMAConfig(&m_hpcd, epnum, PCD_SNG_BUF, config->PmaPos);
+	 config->PmaPos += epsize;
+#elif defined (USB_OTG_FS)
+	 if (epnum & 0x80) {
+		 HAL_PCDEx_SetTxFiFo(&m_hpcd, epnum&0x7F, 2 *  epsize);
+	 }
+	 #endif
+
+
 
 	int status = 0;
 	status = HAL_PCD_EP_Open(hpcd, epnum, epsize, eptype);
@@ -409,4 +418,30 @@ int usbd_stm32_ep_open(void *hpcd, uint8_t epnum, uint8_t epsize,
 	return status;
 }
 
-// Also open and close EP
+
+#if defined (USB_OTG_FS)
+void OTG_FS_IRQHandler(void)
+{
+   HAL_PCD_IRQHandler(&m_hpcd);
+}
+#elif defined STM32F0
+void USB_IRQHandler(void) {
+	HAL_PCD_IRQHandler(&m_hpcd);
+}
+#elif defined STM32F1
+void USB_LP_CAN1_RX0_IRQHandler(void) {
+	HAL_PCD_IRQHandler(&m_hpcd);
+}
+#elif defined STM32F3
+void USB_LP_CAN_RX0_IRQHandler(void) {
+	HAL_PCD_IRQHandler(&m_hpcd);
+}
+#endif
+
+void USBWakeUp_IRQHandler(void) {
+	__HAL_USB_WAKEUP_EXTI_CLEAR_FLAG();
+}
+
+void SysTick_Handler(void) {
+	HAL_IncTick();
+}
