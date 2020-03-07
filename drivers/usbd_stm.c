@@ -44,6 +44,7 @@ static usbd_handle_t m_usbd_handle = { .driver.device_specific = &m_hpcd,
 
 usbd_handle_t* usbd_init() {
 	GPIO_InitTypeDef GPIO_InitStruct;
+	memset(&m_hpcd,0,sizeof(m_hpcd));
 
 	// For now... we'll see how to make this neat later
 	static usbd_stm32_usbfs_v1_config config;
@@ -83,7 +84,7 @@ usbd_handle_t* usbd_init() {
 	GPIO_InitStruct.Alternate = GPIO_AF2_USB;
 	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 #elif defined STM32F4
-    GPIO_InitStruct.Pin = GPIO_PIN_11 | GPIO_PIN_12;
+    GPIO_InitStruct.Pin = GPIO_PIN_11|GPIO_PIN_12;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
@@ -132,8 +133,7 @@ usbd_handle_t* usbd_init() {
 	m_hpcd.Init.dev_endpoints = 8;	// Does this value differ per family?
 	m_hpcd.Init.phy_itface = PCD_PHY_EMBEDDED;
 	m_hpcd.Init.speed = PCD_SPEED_FULL;
-	m_hpcd.Init.low_power_enable = 0;
-
+	m_hpcd.Init.ep0_mps = 64;
 
 	m_hpcd.pData = &m_usbd_handle;
 	m_usbd_handle.driver.device_specific = &m_hpcd;
@@ -145,15 +145,19 @@ usbd_handle_t* usbd_init() {
 
 	int ep0size = m_usbd_handle.descriptor_device->bMaxPacketSize0;
 
-// TODO Verify: This does not apply to OTG
 #if defined (USB) 
 	HAL_PCDEx_PMAConfig(&m_hpcd, 0x00, PCD_SNG_BUF, config.PmaPos);
 	config.PmaPos += ep0size;
 	HAL_PCDEx_PMAConfig(&m_hpcd, 0x80, PCD_SNG_BUF, config.PmaPos);
 	config.PmaPos += ep0size;
 #elif defined (USB_OTG_FS)
-	  HAL_PCDEx_SetRxFiFo(&m_hpcd, 0x80);
-	  HAL_PCDEx_SetTxFiFo(&m_hpcd, 0, ep0size);
+	// This should allocate the buffers for receiving and sending data
+	// over endpoint 0 (thus 0x00 and 0x80)
+	// Still... something is wrong. Might be here, or somewhere else
+	// We *receive* the GET_DESCRIPTOR request fine on the STM32F401, but
+	// the reply does not get received by the host.
+	HAL_PCDEx_SetRxFiFo(&m_hpcd, 0x80);
+	HAL_PCDEx_SetTxFiFo(&m_hpcd, 0, ep0size);
 	#endif
 
 
@@ -185,8 +189,14 @@ void HAL_PCD_DataOutStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 	if ((epnum & 0x7F) == 0x00) {
 		// Setup
 		HAL_PCD_EP_SetStall(hpcd, 0x80);
-		HAL_PCD_EP_SetStall(hpcd, 0x00);
-		HAL_PCD_EP_Transmit(hpcd, 0x00, NULL, 0);
+
+		// Do we need to stall 0x00 as well?
+		//HAL_PCD_EP_SetStall(hpcd, 0x00);
+
+		// This broke the STM32F4 (USB_OTG_FS)
+		// Is it required F0,F1,F3 ??? (USB)
+		// HAL_PCD_EP_Transmit(hpcd, 0x00, NULL, 0);
+
 	} else {
 		// Callback, deliver received data to application
 		if (m_usbd_handle.ep_out[0x7F & epnum].data_cb)
@@ -226,26 +236,27 @@ void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 
 		if (setup) {
 			HAL_PCD_EP_Receive(hpcd, 0x00, NULL, 0);
-			// Fix the long string errors
-			HAL_PCD_EP_SetStall(hpcd, 0x80);
+			HAL_PCD_EP_SetStall(hpcd, 0x80); // Fix the long string errors
 		}
 
 	} else {
 		size_t size = m_usbd_handle.ep_in[epnum & 0x7F].data_left;
 
-		HAL_PCD_EP_Transmit(hpcd, epnum,
-				m_usbd_handle.ep_in[epnum & 0x7F].data_buffer
-						+ (m_usbd_handle.ep_in[epnum & 0x7F].data_size
-								- m_usbd_handle.ep_in[epnum & 0x7F].data_left),
-				size);
+		// We need to add this check to make it work on F4
+		// This means we might break other stuff (ZLP)
+		if (size) {
+			HAL_PCD_EP_Transmit(hpcd, epnum,
+					m_usbd_handle.ep_in[epnum & 0x7F].data_buffer
+							+ (m_usbd_handle.ep_in[epnum & 0x7F].data_size
+									- m_usbd_handle.ep_in[epnum & 0x7F].data_left),
+					size);
 
-		m_usbd_handle.ep_in[epnum & 0x7F].data_left = 0;
+			m_usbd_handle.ep_in[epnum & 0x7F].data_left = 0;
+		}
 
 		if (setup) {
+			HAL_PCD_EP_SetStall(hpcd, 0x80); // Do we need this stall here or will it break stuff?
 			HAL_PCD_EP_Receive(hpcd, 0x00, NULL, 0);
-
-
-
 		} else {
 			if (m_usbd_handle.ep_in[0x7F & epnum].data_cb)
 				m_usbd_handle.ep_in[0x7F & epnum].data_cb(hpcd->pData, epnum,
@@ -264,10 +275,12 @@ void HAL_PCD_ResetCallback(PCD_HandleTypeDef *hpcd) {
 	usbd_handle_t *handle = (usbd_handle_t*) hpcd->pData;
 	size_t epsize0 = handle->descriptor_device->bMaxPacketSize0;
 
+
+
 	// Open EP0 OUT
 	HAL_PCD_EP_Open(hpcd, 0x00, epsize0, USB_EP_ATTR_TYPE_CONTROL);
-	HAL_PCD_EP_Flush(hpcd, 0x00);
-	HAL_PCD_EP_ClrStall(hpcd, 0x00);
+	//HAL_PCD_EP_Flush(hpcd, 0x00);
+	//HAL_PCD_EP_ClrStall(hpcd, 0x00);
 	m_usbd_handle.ep_out[0].ep_size = epsize0;
 
 
@@ -275,8 +288,8 @@ void HAL_PCD_ResetCallback(PCD_HandleTypeDef *hpcd) {
 
 	// Open EP0 IN
 	HAL_PCD_EP_Open(hpcd, 0x80, epsize0, USB_EP_ATTR_TYPE_CONTROL);
-	HAL_PCD_EP_Flush(hpcd, 0x80);
-	HAL_PCD_EP_ClrStall(hpcd, 0x80);
+	//HAL_PCD_EP_Flush(hpcd, 0x80);
+	//HAL_PCD_EP_ClrStall(hpcd, 0x80);
 	m_usbd_handle.ep_in[0].ep_size = epsize0;
 
 	/*
@@ -392,7 +405,7 @@ int usbd_stm32_ep_open(void *hpcd, uint8_t epnum, uint8_t epsize,
 	 config->PmaPos += epsize;
 #elif defined (USB_OTG_FS)
 	 if (epnum & 0x80) {
-		 HAL_PCDEx_SetTxFiFo(&m_hpcd, epnum&0x7F, 2 *  epsize);
+		 HAL_PCDEx_SetTxFiFo(&m_hpcd, epnum&0x7F,  epsize);
 	 }
 	 #endif
 
