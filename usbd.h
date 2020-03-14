@@ -34,37 +34,37 @@ SOFTWARE.
 #include <stdlib.h>
 #include <stdint.h>
 
-struct usbd_handle_t;
+struct bscp_usbd_handle_t;
 
 #include "usb_descriptors.h"
 
-typedef int (*usbd_transmit_f)(void *device_specific, uint8_t ep, void *data,
+typedef int (*bscp_usbd_transmit_f)(void *device_specific, uint8_t ep, void *data,
 		size_t size);
-typedef int (*usbd_set_address_f)(void *device_specific, uint8_t address);
-typedef int (*usbd_ep_set_stall_f)(void *device_specific, uint8_t epnum);
-typedef int (*usbd_ep_clear_stall_f)(void *device_specific, uint8_t epnum);
-typedef int (*usbd_ep_close_f)(void *device_specific, uint8_t epnum);
-typedef int (*usbd_ep_open_f)(void *device_specific, uint8_t epnum,
+typedef int (*bscp_usbd_set_address_f)(void *device_specific, uint8_t address);
+typedef int (*bscp_usbd_ep_set_stall_f)(void *device_specific, uint8_t epnum);
+typedef int (*bscp_usbd_ep_clear_stall_f)(void *device_specific, uint8_t epnum);
+typedef int (*bscp_usbd_ep_close_f)(void *device_specific, uint8_t epnum);
+typedef int (*bscp_usbd_ep_open_f)(void *device_specific, uint8_t epnum,
 		uint8_t epsize, uint8_t eptype);
 
 typedef struct {
-	usbd_transmit_f transmit;
-	usbd_set_address_f set_address;
-	usbd_ep_set_stall_f ep_set_stall;
-	usbd_ep_clear_stall_f ep_clear_stall;
-	usbd_ep_open_f ep_open;
-	usbd_ep_close_f ep_close;
+	bscp_usbd_transmit_f transmit;
+	bscp_usbd_set_address_f set_address;
+	bscp_usbd_ep_set_stall_f ep_set_stall;
+	bscp_usbd_ep_clear_stall_f ep_clear_stall;
+	bscp_usbd_ep_open_f ep_open;
+	bscp_usbd_ep_close_f ep_close;
 	void *device_specific;
 	void *driver_config;
-} usbd_driver_t;
+} bscp_usbd_driver_t;
 
-// As the usbd_transfer_cb_f is in usbd_endpoint_t which is in usbd_handle_t
-// We get some circular problems, therefore I've put struct usbd_handle_t*
+// As the bscp_usbd_transfer_cb_f is in bscp_usbd_endpoint_t which is in bscp_usbd_handle_t
+// We get some circular problems, therefore I've put struct bscp_usbd_handle_t*
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
-typedef void (*usbd_transfer_cb_f)(struct usbd_handle_t *handle, uint8_t ep,
+typedef void (*bscp_usbd_transfer_cb_f)(struct bscp_usbd_handle_t *handle, uint8_t ep,
 		void *data, size_t size);
-//typedef void (*usbd_transfer_cb_f)(usbd_handle_t *handle,uint8_t ep, void* data, size_t size);
+//typedef void (*bscp_usbd_transfer_cb_f)(bscp_usbd_handle_t *handle,uint8_t ep, void* data, size_t size);
 #pragma GCC diagnostic pop
 
 #ifndef USBD_DESCRIPTOR_BUFFER_SIZE
@@ -186,24 +186,24 @@ typedef struct {
 	void *data_buffer;
 	size_t data_size;
 	size_t data_left;
-	usbd_transfer_cb_f data_cb;
+	bscp_usbd_transfer_cb_f data_cb;
 	size_t ep_size;
 	uint8_t ep_type;
 
-} usbd_endpoint_t;
+} bscp_usbd_endpoint_t;
 
 
 typedef enum {
 	RESULT_NEXT_PARSER = 0,
 	RESULT_HANDLED = 1,
 	RESULT_REJECTED = 2,
-} usbd_handler_result_t;
+} bscp_usbd_handler_result_t;
 
-typedef usbd_handler_result_t (* usbd_request_handler)(void *handle,
+typedef bscp_usbd_handler_result_t (* bscp_usbd_request_handler)(void *handle,
 		usb_setuprequest_t *req, void **buf, size_t *size);
 
 typedef struct {
-	usbd_driver_t driver;
+	bscp_usbd_driver_t driver;
 
 	uint8_t usbd_descriptor_buffer[USBD_DESCRIPTOR_BUFFER_SIZE];
 	size_t usbd_descriptor_buffer_offset;
@@ -211,30 +211,30 @@ typedef struct {
 	usb_descriptor_configuration_t *descriptor_configuration[USBD_CONFIGURATION_COUNT];
 	usb_descriptor_string_t *descriptor_string[USBD_STRING_COUNT];
 
-	usbd_endpoint_t ep_in[USBD_ENDPOINTS_COUNT];
-	usbd_endpoint_t ep_out[USBD_ENDPOINTS_COUNT];
+	bscp_usbd_endpoint_t ep_in[USBD_ENDPOINTS_COUNT];
+	bscp_usbd_endpoint_t ep_out[USBD_ENDPOINTS_COUNT];
 
-	usbd_request_handler request_handlers[USBD_REQUEST_HANDLER_COUNT];
+	bscp_usbd_request_handler request_handlers[USBD_REQUEST_HANDLER_COUNT];
 
 	uint8_t configuration;
 	uint8_t interface;
 
-} usbd_handle_t;
+} bscp_usbd_handle_t;
 
 
 
 
-int usbd_transmit(usbd_handle_t *handle, uint8_t ep, void *data, size_t size);
-int usbd_set_address(usbd_handle_t *handle, uint8_t address);
-int usbd_ep_set_stall(usbd_handle_t *handle, uint8_t epnum);
-int usbd_ep_clear_stall(usbd_handle_t *handle, uint8_t epnum);
-int usbd_ep_close(usbd_handle_t *handle, uint8_t epnum);
-int usbd_ep_open(usbd_handle_t *handle, uint8_t epnum, uint8_t epsize,
+int bscp_usbd_transmit(bscp_usbd_handle_t *handle, uint8_t ep, void *data, size_t size);
+int bscp_usbd_set_address(bscp_usbd_handle_t *handle, uint8_t address);
+int bscp_usbd_ep_set_stall(bscp_usbd_handle_t *handle, uint8_t epnum);
+int bscp_usbd_ep_clear_stall(bscp_usbd_handle_t *handle, uint8_t epnum);
+int bscp_usbd_ep_close(bscp_usbd_handle_t *handle, uint8_t epnum);
+int bscp_usbd_ep_open(bscp_usbd_handle_t *handle, uint8_t epnum, uint8_t epsize,
 		uint8_t eptype);
 
-usbd_handler_result_t usbd_handle_request(usbd_handle_t *handle, usb_setuprequest_t *req);
-void usbd_demo_setup_descriptors(usbd_handle_t *handle);
+bscp_usbd_handler_result_t bscp_usbd_handle_request(bscp_usbd_handle_t *handle, usb_setuprequest_t *req);
+void bscp_usbd_demo_setup_descriptors(bscp_usbd_handle_t *handle);
 
-int usbd_request_handler_add(usbd_handler_result_t* handler);
+int bscp_usbd_request_handler_add(bscp_usbd_handler_result_t* handler);
 
 #endif /* USBD_H_ */

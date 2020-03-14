@@ -40,9 +40,9 @@
 #endif
 
 //
-void usbd_add_endpoint_in(usbd_handle_t *handle, uint8_t config, uint8_t epnum,
+void bscp_usbd_add_endpoint_in(bscp_usbd_handle_t *handle, uint8_t config, uint8_t epnum,
 		uint8_t eptype, uint16_t epsize, uint8_t epinterval,
-		usbd_transfer_cb_f cb) {
+		bscp_usbd_transfer_cb_f cb) {
 	// TODO Multi Configuration Support
 	// TODO Range checking
 	// TODO Endpoint type
@@ -63,9 +63,9 @@ void usbd_add_endpoint_in(usbd_handle_t *handle, uint8_t config, uint8_t epnum,
 
 }
 
-void usbd_add_endpoint_out(usbd_handle_t *handle, uint8_t config, uint8_t epnum,
+void bscp_usbd_add_endpoint_out(bscp_usbd_handle_t *handle, uint8_t config, uint8_t epnum,
 		uint8_t eptype, uint16_t epsize, uint8_t epinterval, void *buffer,
-		size_t size, usbd_transfer_cb_f cb) {
+		size_t size, bscp_usbd_transfer_cb_f cb) {
 	// TODO Multi Configuration Support
 	// TODO Range checking
 	// TODO Endpoint type
@@ -88,7 +88,7 @@ void usbd_add_endpoint_out(usbd_handle_t *handle, uint8_t config, uint8_t epnum,
 	handle->ep_out[0x7F & epnum].ep_type = eptype;
 }
 
-usbd_handler_result_t usbd_handle_get_descriptor_request(usbd_handle_t *handle,
+bscp_usbd_handler_result_t bscp_usbd_handle_get_descriptor_request(bscp_usbd_handle_t *handle,
 		usb_setuprequest_t *req, void **buf, size_t *size) {
 
 	int index = req->wValue & 0xFF;
@@ -97,7 +97,7 @@ usbd_handler_result_t usbd_handle_get_descriptor_request(usbd_handle_t *handle,
 	switch (descriptor) {
 	case USB_DT_DEVICE: {
 		/*
-		 usbd_transmit(handle, 0x00, handle->descriptor_device,
+		 bscp_usbd_transmit(handle, 0x00, handle->descriptor_device,
 		 handle->descriptor_device->bLength);
 		 */
 		*buf = handle->descriptor_device;
@@ -118,7 +118,7 @@ usbd_handler_result_t usbd_handle_get_descriptor_request(usbd_handle_t *handle,
 			 < handle->descriptor_configuration[index]->wTotalLength) ?
 			 req->wLength :
 			 handle->descriptor_configuration[index]->wTotalLength;
-			 usbd_transmit(handle, 0x00,
+			 bscp_usbd_transmit(handle, 0x00,
 			 handle->descriptor_configuration[index], size);
 
 			 */
@@ -159,7 +159,7 @@ usbd_handler_result_t usbd_handle_get_descriptor_request(usbd_handle_t *handle,
 
 		} else {
 			/*
-			 usbd_transmit(handle, 0x00, handle->descriptor_string[index],
+			 bscp_usbd_transmit(handle, 0x00, handle->descriptor_string[index],
 			 handle->descriptor_string[index]->bLength);
 			 */
 			*buf = handle->descriptor_string[index];
@@ -191,7 +191,7 @@ usbd_handler_result_t usbd_handle_get_descriptor_request(usbd_handle_t *handle,
 	return RESULT_REJECTED;
 }
 
-usbd_handler_result_t usbd_handle_standard_device_request(usbd_handle_t *handle,
+bscp_usbd_handler_result_t bscp_usbd_handle_standard_device_request(bscp_usbd_handle_t *handle,
 		usb_setuprequest_t *req, void **buf, size_t *size) {
 
 	switch (req->bRequest) {
@@ -201,7 +201,7 @@ usbd_handler_result_t usbd_handle_standard_device_request(usbd_handle_t *handle,
 		// This returns whether the device is bus of self powered (bit 0)
 		//		and the remote wakeup status (bit 1).
 		// TODO: Make this a non-static response
-		// 			1) Store the result within the usbd_handle_t
+		// 			1) Store the result within the bscp_usbd_handle_t
 		//			2) Provide an API to indicate power source
 		//	The Remote Wakeup bit indicates whether the device can wake up the
 		//	host during suspend. It can be set and cleared by
@@ -223,19 +223,19 @@ usbd_handler_result_t usbd_handle_standard_device_request(usbd_handle_t *handle,
 	case USB_REQ_SET_FEATURE:
 		break;
 	case USB_REQ_SET_ADDRESS:
-		usbd_set_address(handle, req->wValue & 0x7F);
+		bscp_usbd_set_address(handle, req->wValue & 0x7F);
 		//usbd_transmit(handle, 0x00, NULL, 0);
 		return RESULT_HANDLED;
 		break;
 	case USB_REQ_GET_DESCRIPTOR: {
-		return usbd_handle_get_descriptor_request(handle, req, buf, size);
+		return bscp_usbd_handle_get_descriptor_request(handle, req, buf, size);
 	}
 		break;
 	case USB_REQ_SET_DESCRIPTOR:
 		// What purpose has the SET_DESCRIPTOR request?
 		break;
 	case USB_REQ_GET_CONFIGURATION:
-		// usbd_transmit(handle, 0x00, &handle->configuration, 1);
+		// bscp_usbd_transmit(handle, 0x00, &handle->configuration, 1);
 		*buf = &handle->configuration;
 		*size = 1;
 		return RESULT_HANDLED;
@@ -263,11 +263,11 @@ usbd_handler_result_t usbd_handle_standard_device_request(usbd_handle_t *handle,
 				// TODO CONFIGURE ENDPOINTS
 
 				if (handle->ep_in[i].ep_size) {
-					usbd_ep_open(handle, 0x80 | i, handle->ep_in[i].ep_size,
+					bscp_usbd_ep_open(handle, 0x80 | i, handle->ep_in[i].ep_size,
 							handle->ep_in[i].ep_type);
 				}
 				if (handle->ep_out[i].ep_size) {
-					usbd_ep_open(handle, i, handle->ep_out[i].ep_size,
+					bscp_usbd_ep_open(handle, i, handle->ep_out[i].ep_size,
 							handle->ep_out[i].ep_type);
 				}
 
@@ -286,14 +286,14 @@ usbd_handler_result_t usbd_handle_standard_device_request(usbd_handle_t *handle,
 	return RESULT_REJECTED;
 }
 
-usbd_handler_result_t usbd_handle_standard_interface_request(
-		usbd_handle_t *handle, usb_setuprequest_t *req, void **buf, size_t *len) {
+bscp_usbd_handler_result_t bscp_usbd_handle_standard_interface_request(
+		bscp_usbd_handle_t *handle, usb_setuprequest_t *req, void **buf, size_t *len) {
 
 	switch (req->bRequest) {
 
 	// For HID...
 	case USB_REQ_GET_DESCRIPTOR: {
-		return usbd_handle_get_descriptor_request(handle, req, buf, len);
+		return bscp_usbd_handle_get_descriptor_request(handle, req, buf, len);
 	}
 
 
@@ -330,8 +330,8 @@ usbd_handler_result_t usbd_handle_standard_interface_request(
 
 }
 
-usbd_handler_result_t usbd_handle_standard_endpoint_request(
-		usbd_handle_t *handle, usb_setuprequest_t *req, void **buf, size_t *len) {
+bscp_usbd_handler_result_t bscp_usbd_handle_standard_endpoint_request(
+		bscp_usbd_handle_t *handle, usb_setuprequest_t *req, void **buf, size_t *len) {
 
 	switch (req->bRequest) {
 	case USB_REQ_GET_STATUS: {
@@ -363,18 +363,18 @@ usbd_handler_result_t usbd_handle_standard_endpoint_request(
 	return RESULT_REJECTED;
 }
 
-usbd_handler_result_t usbd_handle_standard_request(usbd_handle_t *handle,
+bscp_usbd_handler_result_t bscp_usbd_handle_standard_request(bscp_usbd_handle_t *handle,
 		usb_setuprequest_t *req, void **buf, size_t *len) {
 
 	switch (req->bmRequest.Recipient) {
 	case USB_REQTYPE_RECIPIENT_DEVICE:
-		return usbd_handle_standard_device_request(handle, req, buf, len);
+		return bscp_usbd_handle_standard_device_request(handle, req, buf, len);
 		break;
 	case USB_REQTYPE_RECIPIENT_INTERFACE:
-		return usbd_handle_standard_interface_request(handle, req, buf, len);
+		return bscp_usbd_handle_standard_interface_request(handle, req, buf, len);
 		break;
 	case USB_REQTYPE_RECIPIENT_ENDPOINT:
-		return usbd_handle_standard_endpoint_request(handle, req, buf, len);
+		return bscp_usbd_handle_standard_endpoint_request(handle, req, buf, len);
 		break;
 	default:
 		break;
@@ -384,28 +384,28 @@ usbd_handler_result_t usbd_handle_standard_request(usbd_handle_t *handle,
 
 }
 
-usbd_handler_result_t usbd_handle_request(usbd_handle_t *handle,
+bscp_usbd_handler_result_t bscp_usbd_handle_request(bscp_usbd_handle_t *handle,
 		usb_setuprequest_t *req) {
-	usbd_handler_result_t result = RESULT_NEXT_PARSER;
+	bscp_usbd_handler_result_t result = RESULT_NEXT_PARSER;
 	void *buf = NULL;
 	size_t size = 0;
 
 	// TODO, User handlers
 
 	if (result == RESULT_NEXT_PARSER) {
-		result = usbd_handle_standard_request(handle, req, &buf, &size);
+		result = bscp_usbd_handle_standard_request(handle, req, &buf, &size);
 	}
 
 	if (result == RESULT_HANDLED) {
-		usbd_transmit(handle, req->bmRequest.Direction << 7, buf, size);
+		bscp_usbd_transmit(handle, req->bmRequest.Direction << 7, buf, size);
 		//usbd_transmit(handle, 0x00, buf, size);
 	} else {
-		usbd_ep_set_stall(handle, req->bmRequest.Direction << 7);
+		bscp_usbd_ep_set_stall(handle, req->bmRequest.Direction << 7);
 	}
 	return result;
 }
 
-int usbd_transmit(usbd_handle_t *handle, uint8_t ep, void *data, size_t size) {
+int bscp_usbd_transmit(bscp_usbd_handle_t *handle, uint8_t ep, void *data, size_t size) {
 	handle->ep_in[ep & 0x7F].data_buffer = data;
 	handle->ep_in[ep & 0x7F].data_size = size;
 	if (handle->ep_in[ep & 0x7F].ep_size < size)
@@ -416,19 +416,19 @@ int usbd_transmit(usbd_handle_t *handle, uint8_t ep, void *data, size_t size) {
 	return handle->driver.transmit(handle->driver.device_specific, ep, data,
 			size);
 }
-int usbd_set_address(usbd_handle_t *handle, uint8_t address) {
+int bscp_usbd_set_address(bscp_usbd_handle_t *handle, uint8_t address) {
 	return handle->driver.set_address(handle->driver.device_specific, address);
 }
-int usbd_ep_set_stall(usbd_handle_t *handle, uint8_t epnum) {
+int bscp_usbd_ep_set_stall(bscp_usbd_handle_t *handle, uint8_t epnum) {
 	return handle->driver.ep_set_stall(handle->driver.device_specific, epnum);
 }
-int usbd_ep_clear_stall(usbd_handle_t *handle, uint8_t epnum) {
+int bscp_usbd_ep_clear_stall(bscp_usbd_handle_t *handle, uint8_t epnum) {
 	return handle->driver.ep_clear_stall(handle->driver.device_specific, epnum);
 }
-int usbd_ep_close(usbd_handle_t *handle, uint8_t epnum) {
+int bscp_usbd_ep_close(bscp_usbd_handle_t *handle, uint8_t epnum) {
 	return handle->driver.ep_close(handle->driver.device_specific, epnum);
 }
-int usbd_ep_open(usbd_handle_t *handle, uint8_t epnum, uint8_t epsize,
+int bscp_usbd_ep_open(bscp_usbd_handle_t *handle, uint8_t epnum, uint8_t epsize,
 		uint8_t eptype) {
 
 	/*

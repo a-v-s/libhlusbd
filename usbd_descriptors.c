@@ -30,7 +30,7 @@
 
 #include "usbd_descriptors.h"
 
-void* add_descriptor(usbd_handle_t *handle, size_t size) {
+void* add_descriptor(bscp_usbd_handle_t *handle, size_t size) {
 	if ((handle->usbd_descriptor_buffer_offset + size)
 			> USBD_DESCRIPTOR_BUFFER_SIZE)
 		return NULL;
@@ -42,7 +42,7 @@ void* add_descriptor(usbd_handle_t *handle, size_t size) {
 	return retval;
 }
 
-void* add_string_descriptor_ascii(usbd_handle_t *handle, uint8_t *ascii_string) {
+void* add_string_descriptor_ascii(bscp_usbd_handle_t *handle, uint8_t *ascii_string) {
 	usb_descriptor_string_t *strdesc =
 			(usb_descriptor_string_t*) (handle->usbd_descriptor_buffer
 					+ handle->usbd_descriptor_buffer_offset);
@@ -65,7 +65,7 @@ void* add_string_descriptor_ascii(usbd_handle_t *handle, uint8_t *ascii_string) 
 #if USBD_UNICODE_CONVERSION_ENABLED
 #include "ConvertUTF/ConvertUTF.h"
 
-void* add_string_descriptor_utf8(usbd_handle_t *handle, uint8_t *utf8_string) {
+void* add_string_descriptor_utf8(bscp_usbd_handle_t *handle, uint8_t *utf8_string) {
 	usb_descriptor_string_t *strdesc =
 			(usb_descriptor_string_t*) (handle->usbd_descriptor_buffer
 					+ handle->usbd_descriptor_buffer_offset);
@@ -93,7 +93,7 @@ void* add_string_descriptor_utf8(usbd_handle_t *handle, uint8_t *utf8_string) {
 
 // If the string is provided in UTF16LE encoding, no conversion is needed
 // Note: When running on a Big Endian machine, conversion is needed.
-void* add_string_descriptor_utf16(usbd_handle_t *handle, uint16_t *utf16_string) {
+void* add_string_descriptor_utf16(bscp_usbd_handle_t *handle, uint16_t *utf16_string) {
 	usb_descriptor_string_t *strdesc =
 			(usb_descriptor_string_t*) (handle->usbd_descriptor_buffer
 					+ handle->usbd_descriptor_buffer_offset);
