@@ -189,7 +189,7 @@ typedef struct {
 	bscp_usbd_transfer_cb_f data_cb;
 	size_t ep_size;
 	uint8_t ep_type;
-
+	usb_descriptor_endpoint_t * desc;
 } bscp_usbd_endpoint_t;
 
 

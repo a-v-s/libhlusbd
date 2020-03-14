@@ -59,6 +59,13 @@ bscp_usbd_handle_t* usbd_init() {
 
 uint8_t  usbd_setup_transaction (usbd_core_handle_struct *pudev){
 	bscp_usbd_handle_request(&m_usbd_handle, (usb_setuprequest_t *)pudev->setup_packet);
+	
+    pudev->ctl_count = ((usb_setuprequest_t *)pudev->setup_packet)->wLength;
+
+	// So here we need to plug in: check if the request is setconfiguration, then 
+	pudev->status = USBD_CONFIGURED;
+
+	 return USBD_OK;
 }
 
 uint8_t  usbd_out_transaction (usbd_core_handle_struct *pudev, uint8_t ep_num){
@@ -79,6 +86,7 @@ uint8_t  usbd_out_transaction (usbd_core_handle_struct *pudev, uint8_t ep_num){
                 if (USBD_CONFIGURED == pudev->status) {
                     /* device class handle */
                     //pudev->class_data_handler(pudev, USBD_RX, EP0);	
+                	// TODO ?? 
                 }
 
                 /* enter the control transaction status stage */
@@ -97,14 +105,29 @@ uint8_t  usbd_out_transaction (usbd_core_handle_struct *pudev, uint8_t ep_num){
 			// So we need to do something equal as above. Receive untill we're
 			// received all data. So how do we get the amount there is?
 			// I guess that's where the ZLP comes in.... or is the trs_len set somewhere?
-		    //usbd_ep_rx(pudev, ep_num, (uint8_t*)(usb_data_buffer), CDC_ACM_DATA_PACKET_SIZE);
+		    //
 
-/*
-			if (m_usbd_handle.ep_out[0x7F & ep_num].data_cb)
-				m_usbd_handle.ep_out[0x7F & ep_num].data_cb(hpcd->pData, ep_num,
-						m_usbd_handle.ep_out[ep_num & 0x7F].data_buffer,
-						received_amount);
-*/
+        	int recv = usbd_rx_count_get(pudev, 0x7F & ep_num);
+        	if (recv == m_usbd_handle.ep_out[0x7F & ep_num].ep_size) {
+        		// Multi Packet Transfer
+        		// 
+        		m_usbd_handle.ep_out[ep_num & 0x7F].data_left += recv;
+        		// TODO: Buffer checking!
+        	} else {
+        		// Single packet Transfer, or last packet in multi packet transfer
+        		m_usbd_handle.ep_out[ep_num & 0x7F].data_left += recv;
+        		int received_amount = m_usbd_handle.ep_out[ep_num & 0x7F].data_left;
+
+        		if (m_usbd_handle.ep_out[0x7F & ep_num].data_cb)
+        						m_usbd_handle.ep_out[0x7F & ep_num].data_cb(&m_usbd_handle, ep_num,
+        								m_usbd_handle.ep_out[ep_num & 0x7F].data_buffer,
+        								received_amount);
+
+        		m_usbd_handle.ep_out[ep_num & 0x7F].data_left = 0;
+
+        	}
+        	// Continue or restart transfer
+        	usbd_ep_rx(pudev, ep_num, (uint8_t*)(m_usbd_handle.ep_out[ep_num & 0x7F].data_buffer + m_usbd_handle.ep_out[ep_num & 0x7F].data_left), m_usbd_handle.ep_out[0x7F & ep_num].ep_size);
         }
     }
     return USBD_OK;
@@ -185,6 +208,11 @@ int usbd_gd32_transmit(void *hpcd, uint8_t ep, void *data, size_t size) {
 
 int usbd_gd32_set_address(void *hpcd, uint8_t address) {
 	g_device_address = address & 0x7FU;
+    if (0U != g_device_address) {
+    	m_core_handle.status  = USBD_ADDRESSED;
+    } else {
+    	m_core_handle.status  = USBD_DEFAULT;
+    }
 	return 0;
 }
 
@@ -209,10 +237,10 @@ int usbd_gd32_ep_open(void *hpcd, uint8_t epnum, uint8_t epsize,
 	void* ep_desc = NULL;
 	if (epnum & 0x80) {
 	// in
-		ep_desc = &m_usbd_handle.ep_in[epnum&0x7F];
+		ep_desc = m_usbd_handle.ep_in[epnum&0x7F].desc;
 	} else {
 	// out
-		ep_desc = &m_usbd_handle.ep_out[epnum&0x7F];
+		ep_desc = m_usbd_handle.ep_out[epnum&0x7F].desc;
 	}
 	usbd_ep_init(hpcd, ENDP_SNG_BUF,  ep_desc);
 

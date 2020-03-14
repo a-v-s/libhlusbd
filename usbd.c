@@ -60,6 +60,7 @@ void bscp_usbd_add_endpoint_in(bscp_usbd_handle_t *handle, uint8_t config, uint8
 	handle->ep_in[0x7F & epnum].data_cb = cb;
 	handle->ep_in[0x7F & epnum].ep_size = epsize;
 	handle->ep_in[0x7F & epnum].ep_type = eptype;
+	handle->ep_in[0x7F & epnum].desc = ep;
 
 }
 
@@ -86,6 +87,7 @@ void bscp_usbd_add_endpoint_out(bscp_usbd_handle_t *handle, uint8_t config, uint
 	handle->ep_out[0x7F & epnum].data_cb = cb;
 	handle->ep_out[0x7F & epnum].ep_size = epsize;
 	handle->ep_out[0x7F & epnum].ep_type = eptype;
+	handle->ep_out[0x7F & epnum].desc = ep;
 }
 
 bscp_usbd_handler_result_t bscp_usbd_handle_get_descriptor_request(bscp_usbd_handle_t *handle,
