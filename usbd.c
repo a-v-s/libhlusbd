@@ -210,7 +210,7 @@ bscp_usbd_handler_result_t bscp_usbd_handle_standard_device_request(bscp_usbd_ha
 		//  USB_REQ_CLEAR_FEATURE and USB_REQ_SET_FEATURE. TODO: Investigate
 		//  how we're supposed to behave when this has been set.
 
-		static const uint16_t status = 0;
+		static  uint16_t status = 0;
 		//usbd_transmit(handle, 0x80, &status, 2);
 		*buf = &status;
 		*size = sizeof(status);
@@ -306,7 +306,7 @@ bscp_usbd_handler_result_t bscp_usbd_handle_standard_interface_request(
 		// Interface number is wIndex
 		// We're always supposed to return 0
 		// So we're done like this
-		const static uint16_t status = 0;
+		 static uint16_t status = 0;
 		*buf = &status;
 		*len = sizeof(status);
 		return RESULT_HANDLED;
@@ -342,7 +342,7 @@ bscp_usbd_handler_result_t bscp_usbd_handle_standard_endpoint_request(
 		// Endpoint number is wIndex
 		// Bit 0 indicates the endpoint is stalled.
 
-		const static uint16_t status = 0;
+		 static uint16_t status = 0;
 		*buf = &status;
 		*len = sizeof(status);
 		return RESULT_HANDLED;
@@ -410,11 +410,15 @@ bscp_usbd_handler_result_t bscp_usbd_handle_request(bscp_usbd_handle_t *handle,
 int bscp_usbd_transmit(bscp_usbd_handle_t *handle, uint8_t ep, void *data, size_t size) {
 	handle->ep_in[ep & 0x7F].data_buffer = data;
 	handle->ep_in[ep & 0x7F].data_size = size;
+	handle->ep_in[ep & 0x7F].data_cnt = 0;
+
+	/*
 	if (handle->ep_in[ep & 0x7F].ep_size < size)
 		handle->ep_in[ep & 0x7F].data_left = size
 				- handle->ep_in[ep & 0x7F].ep_size;
 	else
 		handle->ep_in[ep & 0x7F].data_left = 0;
+		*/
 	return handle->driver.transmit(handle->driver.device_specific, ep, data,
 			size);
 }

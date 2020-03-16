@@ -185,7 +185,8 @@ typedef struct {
 typedef struct {
 	void *data_buffer;
 	size_t data_size;
-	size_t data_left;
+	//size_t data_left;
+	size_t data_cnt;
 	bscp_usbd_transfer_cb_f data_cb;
 	size_t ep_size;
 	uint8_t ep_type;
