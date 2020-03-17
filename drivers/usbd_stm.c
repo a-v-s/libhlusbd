@@ -222,13 +222,17 @@ void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 			- m_usbd_handle.ep_in[epnum & 0x7F].data_cnt)
 			>= m_usbd_handle.ep_in[epnum & 0x7F].ep_size) {
 
-		m_usbd_handle.ep_in[epnum & 0x7F].data_cnt += m_usbd_handle.ep_in[epnum
-				& 0x7F].ep_size;
-
 		HAL_PCD_EP_Transmit(hpcd, epnum,
 				m_usbd_handle.ep_in[epnum & 0x7F].data_buffer
 						+ m_usbd_handle.ep_in[epnum & 0x7F].data_cnt,
-				m_usbd_handle.ep_in[epnum & 0x7F].ep_size);
+				//m_usbd_handle.ep_in[epnum & 0x7F].ep_size);
+						m_usbd_handle.ep_in[epnum & 0x7F].data_size
+									- m_usbd_handle.ep_in[epnum & 0x7F].data_cnt);
+
+
+		m_usbd_handle.ep_in[epnum & 0x7F].data_cnt += m_usbd_handle.ep_in[epnum
+				& 0x7F].ep_size;
+
 
 		if (setup) {
 			HAL_PCD_EP_Receive(hpcd, 0x00, NULL, 0);
@@ -257,6 +261,10 @@ void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 			m_usbd_handle.ep_in[epnum & 0x7F].data_cnt =
 					m_usbd_handle.ep_in[epnum & 0x7F].data_size;
 
+		} else if (! m_usbd_handle.ep_in[epnum & 0x7F].data_size % m_usbd_handle.ep_in[epnum & 0x7F].ep_size) {
+
+				 // ZLP .. breaks STM32F4 ... but what happens to transfers that need ZLP?
+				 // HAL_PCD_EP_Transmit(hpcd, epnum, NULL,0);
 		}
 
 		if (setup) {
@@ -265,11 +273,10 @@ void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 		} else {
 			if (m_usbd_handle.ep_in[0x7F & epnum].data_cb)
 				m_usbd_handle.ep_in[0x7F & epnum].data_cb(hpcd->pData, epnum,
-						m_usbd_handle.ep_out[epnum & 0x7F].data_buffer,
-						m_usbd_handle.ep_out[epnum & 0x7F].data_size);
+						m_usbd_handle.ep_in[epnum & 0x7F].data_buffer,
+						m_usbd_handle.ep_in[epnum & 0x7F].data_size);
 		}
 	}
-
 }
 void HAL_PCD_SOFCallback(PCD_HandleTypeDef *hpcd) {
 	//USBD_LL_SOF((USBD_HandleTypeDef*)hpcd->pData);
@@ -365,7 +372,20 @@ void HAL_PCD_DisconnectCallback(PCD_HandleTypeDef *hpcd) {
 }
 
 int usbd_stm32_transmit(void *hpcd, uint8_t ep, void *data, size_t size) {
-	return HAL_PCD_EP_Transmit(hpcd, ep, data, size);
+
+
+	       int ep_size = m_usbd_handle.ep_in[ep & 0x7F].ep_size;
+	       m_usbd_handle.ep_in[ep & 0x7F].data_buffer = data;
+	       m_usbd_handle.ep_in[ep & 0x7F].data_size = size;
+	       size_t tx_size= size < ep_size ? size : ep_size;
+	       m_usbd_handle.ep_in[ep & 0x7F].data_cnt = tx_size; // F4 fix again
+	       int result = HAL_PCD_EP_Transmit(hpcd, ep, data,
+	                       size);
+
+	       return result;
+
+	//       return HAL_PCD_EP_Transmit(hpcd, ep, data, size);
+
 }
 
 int usbd_stm32_set_address(void *hpcd, uint8_t address) {
