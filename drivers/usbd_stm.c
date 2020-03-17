@@ -268,8 +268,9 @@ void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 		}
 
 		if (setup) {
-			HAL_PCD_EP_SetStall(hpcd, 0x80); // Do we need this stall here or will it break stuff?
 			HAL_PCD_EP_Receive(hpcd, 0x00, NULL, 0);
+			HAL_PCD_EP_SetStall(hpcd, 0x80); // Do we need this stall here or will it break stuff?
+
 		} else {
 			if (m_usbd_handle.ep_in[0x7F & epnum].data_cb)
 				m_usbd_handle.ep_in[0x7F & epnum].data_cb(hpcd->pData, epnum,
