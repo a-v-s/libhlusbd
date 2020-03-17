@@ -28,12 +28,13 @@
 
  */
 
+#include <string.h>
 #include "usbd.h"
 #include "usbd_stm.h"
 
 static PCD_HandleTypeDef m_hpcd;
 
-static usbd_handle_t m_usbd_handle = { .driver.device_specific = &m_hpcd,
+static bscp_usbd_handle_t m_usbd_handle = { .driver.device_specific = &m_hpcd,
 		.driver.transmit = &usbd_stm32_transmit, .driver.set_address =
 				&usbd_stm32_set_address, .driver.ep_set_stall =
 				&usbd_stm32_ep_set_stall, .driver.ep_clear_stall =
@@ -42,16 +43,16 @@ static usbd_handle_t m_usbd_handle = { .driver.device_specific = &m_hpcd,
 
 //uint8_t test_buffer[64];
 
-usbd_handle_t* usbd_init() {
+bscp_usbd_handle_t* usbd_init() {
 	GPIO_InitTypeDef GPIO_InitStruct;
-	memset(&m_hpcd,0,sizeof(m_hpcd));
+	memset(&m_hpcd, 0, sizeof(m_hpcd));
 
 	// For now... we'll see how to make this neat later
 	static usbd_stm32_usbfs_v1_config config;
 	m_usbd_handle.driver.driver_config = &config;
 	config.PmaPos = PMAPOS_MIN;
 
-	usbd_demo_setup_descriptors(&m_usbd_handle);
+	bscp_usbd_demo_setup_descriptors(&m_usbd_handle);
 
 	__HAL_RCC_GPIOA_CLK_ENABLE();
 
@@ -123,8 +124,6 @@ usbd_handle_t* usbd_init() {
 	HAL_NVIC_EnableIRQ(USB_IRQn);
 #endif
 
-
-
 #if defined (USB) 
 	m_hpcd.Instance = USB;
 #elif defined (USB_OTG_FS)
@@ -140,8 +139,6 @@ usbd_handle_t* usbd_init() {
 
 	// Initialize LL Driver
 	HAL_PCD_Init(&m_hpcd);
-
-
 
 	int ep0size = m_usbd_handle.descriptor_device->bMaxPacketSize0;
 
@@ -160,17 +157,16 @@ usbd_handle_t* usbd_init() {
 	HAL_PCDEx_SetTxFiFo(&m_hpcd, 0, ep0size);
 	#endif
 
-
-	  HAL_PCD_Start(&m_hpcd);
+	HAL_PCD_Start(&m_hpcd);
 
 	// Moved to Open EP
-/*
-	HAL_PCDEx_PMAConfig(&m_hpcd, 0x01, PCD_SNG_BUF, config.PmaPos);
-	config.PmaPos += 0x40;
-	HAL_PCDEx_PMAConfig(&m_hpcd, 0x81, PCD_SNG_BUF, config.PmaPos);
-	config.PmaPos += 0x40;
-	HAL_PCDEx_PMAConfig(&m_hpcd, 0x82, PCD_SNG_BUF, config.PmaPos);
-*/
+	/*
+	 HAL_PCDEx_PMAConfig(&m_hpcd, 0x01, PCD_SNG_BUF, config.PmaPos);
+	 config.PmaPos += 0x40;
+	 HAL_PCDEx_PMAConfig(&m_hpcd, 0x81, PCD_SNG_BUF, config.PmaPos);
+	 config.PmaPos += 0x40;
+	 HAL_PCDEx_PMAConfig(&m_hpcd, 0x82, PCD_SNG_BUF, config.PmaPos);
+	 */
 
 	return &m_usbd_handle;
 
@@ -178,7 +174,7 @@ usbd_handle_t* usbd_init() {
 
 //--
 void HAL_PCD_SetupStageCallback(PCD_HandleTypeDef *hpcd) {
-	usbd_handle_request(hpcd->pData, (usb_setuprequest_t*) (hpcd->Setup));
+	bscp_usbd_handle_request(hpcd->pData, (usb_setuprequest_t*) (hpcd->Setup));
 }
 
 void HAL_PCD_DataOutStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
@@ -222,17 +218,17 @@ void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 	bool setup = ((epnum & 0x7F) == 0x00);
 
 	// Is this a Multi Part transfer?
-	if (m_usbd_handle.ep_in[epnum & 0x7F].data_left
+	if ((m_usbd_handle.ep_in[epnum & 0x7F].data_size
+			- m_usbd_handle.ep_in[epnum & 0x7F].data_cnt)
 			>= m_usbd_handle.ep_in[epnum & 0x7F].ep_size) {
+
+		m_usbd_handle.ep_in[epnum & 0x7F].data_cnt += m_usbd_handle.ep_in[epnum
+				& 0x7F].ep_size;
 
 		HAL_PCD_EP_Transmit(hpcd, epnum,
 				m_usbd_handle.ep_in[epnum & 0x7F].data_buffer
-						+ (m_usbd_handle.ep_in[epnum & 0x7F].data_size
-								- m_usbd_handle.ep_in[epnum & 0x7F].data_left),
+						+ m_usbd_handle.ep_in[epnum & 0x7F].data_cnt,
 				m_usbd_handle.ep_in[epnum & 0x7F].ep_size);
-
-		m_usbd_handle.ep_in[epnum & 0x7F].data_left -= m_usbd_handle.ep_in[epnum
-				& 0x7F].ep_size;
 
 		if (setup) {
 			HAL_PCD_EP_Receive(hpcd, 0x00, NULL, 0);
@@ -240,18 +236,27 @@ void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 		}
 
 	} else {
-		size_t size = m_usbd_handle.ep_in[epnum & 0x7F].data_left;
+		size_t size = m_usbd_handle.ep_in[epnum & 0x7F].data_size
+				- m_usbd_handle.ep_in[epnum & 0x7F].data_cnt;
+
+		// After working on the GD, and making up for the changes in the
+		// usbd.c, I'm hitting a curious problem: When a multi packet
+		// transfer is performed, every other transfer is missing one packet
+
+		if (m_usbd_handle.ep_in[epnum & 0x7F].data_size > 64) {
+			int breakpoint = 1;
+		}
 
 		// We need to add this check to make it work on F4
 		// This means we might break other stuff (ZLP)
 		if (size) {
 			HAL_PCD_EP_Transmit(hpcd, epnum,
 					m_usbd_handle.ep_in[epnum & 0x7F].data_buffer
-							+ (m_usbd_handle.ep_in[epnum & 0x7F].data_size
-									- m_usbd_handle.ep_in[epnum & 0x7F].data_left),
-					size);
+							+ m_usbd_handle.ep_in[epnum & 0x7F].data_cnt, size);
 
-			m_usbd_handle.ep_in[epnum & 0x7F].data_left = 0;
+			m_usbd_handle.ep_in[epnum & 0x7F].data_cnt =
+					m_usbd_handle.ep_in[epnum & 0x7F].data_size;
+
 		}
 
 		if (setup) {
@@ -272,19 +277,14 @@ void HAL_PCD_SOFCallback(PCD_HandleTypeDef *hpcd) {
 
 void HAL_PCD_ResetCallback(PCD_HandleTypeDef *hpcd) {
 	// Feth Packet Size 0 from Device Descriptor
-	usbd_handle_t *handle = (usbd_handle_t*) hpcd->pData;
+	bscp_usbd_handle_t *handle = (bscp_usbd_handle_t*) hpcd->pData;
 	size_t epsize0 = handle->descriptor_device->bMaxPacketSize0;
-
-
 
 	// Open EP0 OUT
 	HAL_PCD_EP_Open(hpcd, 0x00, epsize0, USB_EP_ATTR_TYPE_CONTROL);
 	//HAL_PCD_EP_Flush(hpcd, 0x00);
 	//HAL_PCD_EP_ClrStall(hpcd, 0x00);
 	m_usbd_handle.ep_out[0].ep_size = epsize0;
-
-
-
 
 	// Open EP0 IN
 	HAL_PCD_EP_Open(hpcd, 0x80, epsize0, USB_EP_ATTR_TYPE_CONTROL);
@@ -364,17 +364,8 @@ void HAL_PCD_DisconnectCallback(PCD_HandleTypeDef *hpcd) {
 	// Can/should we do pullup/reset behaviour here?
 }
 
-
-
 int usbd_stm32_transmit(void *hpcd, uint8_t ep, void *data, size_t size) {
-	int ep_size = m_usbd_handle.ep_in[ep & 0x7F].ep_size;
-	m_usbd_handle.ep_in[ep & 0x7F].data_buffer = data;
-	m_usbd_handle.ep_in[ep & 0x7F].data_size = size;
-	int result = HAL_PCD_EP_Transmit(hpcd, ep, data,
-			size < ep_size ? size : ep_size);
-
-	return result;
-
+	return HAL_PCD_EP_Transmit(hpcd, ep, data, size);
 }
 
 int usbd_stm32_set_address(void *hpcd, uint8_t address) {
@@ -398,7 +389,6 @@ int usbd_stm32_ep_open(void *hpcd, uint8_t epnum, uint8_t epsize,
 	// for an endpoint already configured. Eg, when there is a call to open close open.
 	// Also, investigate if it is worth adding double buffering support for the PMA
 
-
 #if defined (USB)
 	usbd_stm32_usbfs_v1_config *config = (usbd_stm32_usbfs_v1_config*) m_usbd_handle.driver.driver_config;
 	HAL_PCDEx_PMAConfig(&m_hpcd, epnum, PCD_SNG_BUF, config->PmaPos);
@@ -407,9 +397,7 @@ int usbd_stm32_ep_open(void *hpcd, uint8_t epnum, uint8_t epsize,
 	 if (epnum & 0x80) {
 		 HAL_PCDEx_SetTxFiFo(&m_hpcd, epnum&0x7F,  epsize);
 	 }
-	 #endif
-
-
+#endif
 
 	int status = 0;
 	status = HAL_PCD_EP_Open(hpcd, epnum, epsize, eptype);
@@ -430,7 +418,6 @@ int usbd_stm32_ep_open(void *hpcd, uint8_t epnum, uint8_t epsize,
 
 	return status;
 }
-
 
 #if defined (USB_OTG_FS)
 void OTG_FS_IRQHandler(void)
