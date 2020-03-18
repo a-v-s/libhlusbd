@@ -239,12 +239,15 @@ void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 						m_usbd_handle.ep_in[epnum & 0x7F].data_size
 								- m_usbd_handle.ep_in[epnum & 0x7F].data_cnt);
 		} else {
-			//if (!(m_usbd_handle.ep_in[epnum & 0x7F].data_size%m_usbd_handle.ep_in[epnum & 0x7F].ep_size ))	HAL_PCD_EP_Transmit(hpcd, epnum,NULL,0);
+			// We need to test this. This probably needs to change:
+			// if NEED_ZLP, then send ZLP, and then we're supposed to be called again
+			// and only then we should stall. At least ST's middleware does it like that.
+			// And the OTG implementation is more sensitive to such details
+			// then the USBFS hardware. We need to test this with some specially prepared string descriptors.
+			if (!(m_usbd_handle.ep_in[epnum & 0x7F].data_size%m_usbd_handle.ep_in[epnum & 0x7F].ep_size ))	HAL_PCD_EP_Transmit(hpcd, epnum,NULL,0);
 			HAL_PCD_EP_SetStall(hpcd, 0x80);
 		}
-
 		HAL_PCD_EP_Receive(hpcd, 0x00, NULL, 0);
-
 	}
 
 		if (hpcd->IN_ep[0x7F & epnum].xfer_count == m_usbd_handle.ep_in[epnum & 0x7F].data_size) {
@@ -279,21 +282,16 @@ void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 		size_t size = m_usbd_handle.ep_in[epnum & 0x7F].data_size
 				- m_usbd_handle.ep_in[epnum & 0x7F].data_cnt;
 
-		if (m_usbd_handle.ep_in[epnum & 0x7F].data_size > 64) {
-			int breakpoint = 1;
-		}
-
-		if (size || need_zlp)
-			HAL_PCD_EP_Transmit(hpcd, epnum,
-					m_usbd_handle.ep_in[epnum & 0x7F].data_buffer
-							+ m_usbd_handle.ep_in[epnum & 0x7F].data_cnt, size);
+		HAL_PCD_EP_Transmit(hpcd, epnum,
+				m_usbd_handle.ep_in[epnum & 0x7F].data_buffer
+						+ m_usbd_handle.ep_in[epnum & 0x7F].data_cnt, size);
 
 		m_usbd_handle.ep_in[epnum & 0x7F].data_cnt = m_usbd_handle.ep_in[epnum
 				& 0x7F].data_size;
 
 		if (setup) {
 			HAL_PCD_EP_Receive(hpcd, 0x00, NULL, 0);
-			HAL_PCD_EP_SetStall(hpcd, 0x80); // Order matters, string
+			HAL_PCD_EP_SetStall(hpcd, 0x80); // Order matters, first receive then stall
 		} else {
 			if (m_usbd_handle.ep_in[0x7F & epnum].data_cb)
 				m_usbd_handle.ep_in[0x7F & epnum].data_cb(hpcd->pData, epnum,
