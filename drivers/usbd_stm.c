@@ -216,6 +216,44 @@ void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 
 	// Is it Setup or Data
 	bool setup = ((epnum & 0x7F) == 0x00);
+#ifdef USB_OTG_FS
+
+	if (setup) {
+		// It seems the OTG version handles the complete transfers for EP1+
+		// But for EP0 (setup) we need to handle multi-packet transfers like we
+		// would on the USBFSv1/USBFSv2 hardware
+
+		// First a quick and dirty copy paste solution, if the above turns out to be
+		// corrent, then make a neat solution
+
+		// Well... it doesn't work.
+
+
+		m_usbd_handle.ep_in[epnum & 0x7F].data_cnt += hpcd->IN_ep[0x7F & epnum].xfer_len;
+
+		if (m_usbd_handle.ep_in[epnum & 0x7F].data_size
+								> m_usbd_handle.ep_in[epnum & 0x7F].data_cnt) {
+				HAL_PCD_EP_Transmit(hpcd, epnum,
+						m_usbd_handle.ep_in[epnum & 0x7F].data_buffer
+								+ m_usbd_handle.ep_in[epnum & 0x7F].data_cnt,
+						m_usbd_handle.ep_in[epnum & 0x7F].data_size
+								- m_usbd_handle.ep_in[epnum & 0x7F].data_cnt);
+		} else {
+			//if (!(m_usbd_handle.ep_in[epnum & 0x7F].data_size%m_usbd_handle.ep_in[epnum & 0x7F].ep_size ))	HAL_PCD_EP_Transmit(hpcd, epnum,NULL,0);
+			HAL_PCD_EP_SetStall(hpcd, 0x80);
+		}
+
+		HAL_PCD_EP_Receive(hpcd, 0x00, NULL, 0);
+
+	}
+
+		if (hpcd->IN_ep[0x7F & epnum].xfer_count == m_usbd_handle.ep_in[epnum & 0x7F].data_size) {
+			if (m_usbd_handle.ep_in[0x7F & epnum].data_cb)
+				m_usbd_handle.ep_in[0x7F & epnum].data_cb(hpcd->pData, epnum,
+						m_usbd_handle.ep_in[epnum & 0x7F].data_buffer,
+						m_usbd_handle.ep_in[epnum & 0x7F].data_size);
+		}
+#else
 
 	// Is this a Multi Part transfer?
 	if ((m_usbd_handle.ep_in[epnum & 0x7F].data_size
@@ -226,13 +264,11 @@ void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 				m_usbd_handle.ep_in[epnum & 0x7F].data_buffer
 						+ m_usbd_handle.ep_in[epnum & 0x7F].data_cnt,
 				//m_usbd_handle.ep_in[epnum & 0x7F].ep_size);
-						m_usbd_handle.ep_in[epnum & 0x7F].data_size
-									- m_usbd_handle.ep_in[epnum & 0x7F].data_cnt);
-
+				m_usbd_handle.ep_in[epnum & 0x7F].data_size
+						- m_usbd_handle.ep_in[epnum & 0x7F].data_cnt);
 
 		m_usbd_handle.ep_in[epnum & 0x7F].data_cnt += m_usbd_handle.ep_in[epnum
 				& 0x7F].ep_size;
-
 
 		if (setup) {
 			HAL_PCD_EP_Receive(hpcd, 0x00, NULL, 0);
@@ -243,34 +279,21 @@ void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 		size_t size = m_usbd_handle.ep_in[epnum & 0x7F].data_size
 				- m_usbd_handle.ep_in[epnum & 0x7F].data_cnt;
 
-		// After working on the GD, and making up for the changes in the
-		// usbd.c, I'm hitting a curious problem: When a multi packet
-		// transfer is performed, every other transfer is missing one packet
-
 		if (m_usbd_handle.ep_in[epnum & 0x7F].data_size > 64) {
 			int breakpoint = 1;
 		}
 
-		// We need to add this check to make it work on F4
-		// This means we might break other stuff (ZLP)
-		if (size) {
+		if (size || need_zlp)
 			HAL_PCD_EP_Transmit(hpcd, epnum,
 					m_usbd_handle.ep_in[epnum & 0x7F].data_buffer
 							+ m_usbd_handle.ep_in[epnum & 0x7F].data_cnt, size);
 
-			m_usbd_handle.ep_in[epnum & 0x7F].data_cnt =
-					m_usbd_handle.ep_in[epnum & 0x7F].data_size;
-
-		} else if (! m_usbd_handle.ep_in[epnum & 0x7F].data_size % m_usbd_handle.ep_in[epnum & 0x7F].ep_size) {
-
-				 // ZLP .. breaks STM32F4 ... but what happens to transfers that need ZLP?
-				 // HAL_PCD_EP_Transmit(hpcd, epnum, NULL,0);
-		}
+		m_usbd_handle.ep_in[epnum & 0x7F].data_cnt = m_usbd_handle.ep_in[epnum
+				& 0x7F].data_size;
 
 		if (setup) {
 			HAL_PCD_EP_Receive(hpcd, 0x00, NULL, 0);
-			HAL_PCD_EP_SetStall(hpcd, 0x80); // Do we need this stall here or will it break stuff?
-
+			HAL_PCD_EP_SetStall(hpcd, 0x80); // Order matters, string
 		} else {
 			if (m_usbd_handle.ep_in[0x7F & epnum].data_cb)
 				m_usbd_handle.ep_in[0x7F & epnum].data_cb(hpcd->pData, epnum,
@@ -278,6 +301,8 @@ void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 						m_usbd_handle.ep_in[epnum & 0x7F].data_size);
 		}
 	}
+#endif
+
 }
 void HAL_PCD_SOFCallback(PCD_HandleTypeDef *hpcd) {
 	//USBD_LL_SOF((USBD_HandleTypeDef*)hpcd->pData);
@@ -373,20 +398,11 @@ void HAL_PCD_DisconnectCallback(PCD_HandleTypeDef *hpcd) {
 }
 
 int usbd_stm32_transmit(void *hpcd, uint8_t ep, void *data, size_t size) {
-
-
-	       int ep_size = m_usbd_handle.ep_in[ep & 0x7F].ep_size;
-	       m_usbd_handle.ep_in[ep & 0x7F].data_buffer = data;
-	       m_usbd_handle.ep_in[ep & 0x7F].data_size = size;
-	       size_t tx_size= size < ep_size ? size : ep_size;
-	       m_usbd_handle.ep_in[ep & 0x7F].data_cnt = tx_size; // F4 fix again
-	       int result = HAL_PCD_EP_Transmit(hpcd, ep, data,
-	                       size);
-
-	       return result;
-
-	//       return HAL_PCD_EP_Transmit(hpcd, ep, data, size);
-
+	m_usbd_handle.ep_in[ep & 0x7F].data_buffer = data;
+	m_usbd_handle.ep_in[ep & 0x7F].data_size = size;
+	m_usbd_handle.ep_in[ep & 0x7F].data_cnt = 0;
+	int result = HAL_PCD_EP_Transmit(hpcd, ep, data, size);
+	return result;
 }
 
 int usbd_stm32_set_address(void *hpcd, uint8_t address) {
