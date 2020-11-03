@@ -435,15 +435,19 @@ int usbd_stm32_ep_open(void *hpcd, uint8_t epnum, uint8_t epsize,
 #endif
 
 	int status = 0;
-	status = HAL_PCD_EP_Open(hpcd, epnum, epsize, eptype);
-	if (status)
-		return status;
+	//status = HAL_PCD_EP_Open(hpcd, epnum, epsize, eptype);
+	//if (status)
+	//	return status;
 	status = HAL_PCD_EP_Flush(hpcd, epnum);
 	if (status)
 		return status;
 	status = HAL_PCD_EP_ClrStall(hpcd, epnum);
 	if (status)
 		return status;
+	status = HAL_PCD_EP_Open(hpcd, epnum, epsize, eptype);
+	if (status)
+		return status;
+
 
 	// Prepare to receive data to the assigned buffer
 	if (!(epnum & 0x80))
