@@ -1,9 +1,9 @@
 // GigeDevice's includes
 #include "usbd_core.h"
-#include "usbd_int.h"
-#include "usbd_pwr.h"
-#include "usbd_regs.h"
-#include "usbd_std.h"
+#include "drv_usbd_int.h"
+//#include "usbd_pwr.h"
+#include "drv_usb_regs.h"
+#include "usb_ch9_std.h"
 
 int usbd_gd32_transmit(void *pcd_handle, uint8_t ep, void *data, size_t size);
 int usbd_gd32_set_address(void *pcd_handle, uint8_t address);
