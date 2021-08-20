@@ -39,7 +39,7 @@
 #include "usbd.h"
 #include "usbd_nrfx.h"
 
-static usbd_handle_t m_usbd_handle = { .driver.device_specific = NULL,
+static bscp_usbd_handle_t m_usbd_handle = { .driver.device_specific = NULL,
 		.driver.transmit = &usbd_nrfx_transmit, .driver.set_address =
 				&usbd_nrfx_set_address, .driver.ep_set_stall =
 				&usbd_nrfx_ep_set_stall, .driver.ep_clear_stall =
@@ -139,7 +139,7 @@ static void nrfx_openusb_event_handler(nrfx_usbd_evt_t const *const p_event) {
 	case NRFX_USBD_EVT_SETUP: {
 		static nrfx_usbd_setup_t setup;
 		nrfx_usbd_setup_get(&setup);
-		usbd_handle_request(&m_usbd_handle, &setup);
+		bscp_usbd_handle_request(&m_usbd_handle, &setup);
 		break;
 	}
 
