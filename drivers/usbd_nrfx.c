@@ -153,7 +153,7 @@ int usbd_init(void) {
 	while (!NRF_CLOCK->EVENTS_HFCLKSTARTED)
 		;
 
-	usbd_demo_setup_descriptors(&m_usbd_handle);
+	bscp_usbd_demo_setup_descriptors(&m_usbd_handle);
 
 	// Isn't my interrupt being enabled?
 	NVIC_EnableIRQ(USBD_IRQn);
