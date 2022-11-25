@@ -200,7 +200,7 @@ typedef enum {
 	RESULT_REJECTED = 2,
 } bscp_usbd_handler_result_t;
 
-typedef bscp_usbd_handler_result_t (* bscp_usbd_request_handler)(void *handle,
+typedef bscp_usbd_handler_result_t (* bscp_usbd_request_handler_f)(void *handle,
 		usb_setuprequest_t *req, void **buf, size_t *size);
 
 typedef struct {
@@ -215,7 +215,7 @@ typedef struct {
 	bscp_usbd_endpoint_t ep_in[USBD_ENDPOINTS_COUNT];
 	bscp_usbd_endpoint_t ep_out[USBD_ENDPOINTS_COUNT];
 
-	bscp_usbd_request_handler request_handlers[USBD_REQUEST_HANDLER_COUNT];
+	bscp_usbd_request_handler_f request_handlers[USBD_REQUEST_HANDLER_COUNT];
 
 	uint8_t configuration;
 	uint8_t interface;
@@ -236,6 +236,6 @@ int bscp_usbd_ep_open(bscp_usbd_handle_t *handle, uint8_t epnum, uint8_t epsize,
 bscp_usbd_handler_result_t bscp_usbd_handle_request(bscp_usbd_handle_t *handle, usb_setuprequest_t *req);
 void bscp_usbd_demo_setup_descriptors(bscp_usbd_handle_t *handle);
 
-int bscp_usbd_request_handler_add(bscp_usbd_handler_result_t* handler);
+int bscp_usbd_request_handler_add(bscp_usbd_request_handler_f handler);
 
 #endif /* USBD_H_ */

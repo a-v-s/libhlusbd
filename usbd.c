@@ -39,6 +39,19 @@
 #include "ConvertUTF/ConvertUTF.h"
 #endif
 
+#define USER_HANDLER_COUNT (4)
+static bscp_usbd_request_handler_f m_bscp_usbd_request_handlers[USER_HANDLER_COUNT] = {0};
+
+int bscp_usbd_request_handler_add(bscp_usbd_request_handler_f handler) {
+	for (int i = 0 ; i < USER_HANDLER_COUNT; i++ ) {
+		if (!m_bscp_usbd_request_handlers[i]) {
+			m_bscp_usbd_request_handlers[i] = handler;
+			return 0;
+		}
+	}
+	return -1;
+}
+
 //
 void bscp_usbd_add_endpoint_in(bscp_usbd_handle_t *handle, uint8_t config,
 		uint8_t epnum, uint8_t eptype, uint16_t epsize, uint8_t epinterval,
@@ -394,13 +407,21 @@ bscp_usbd_handler_result_t bscp_usbd_handle_standard_request(
 
 }
 
+
+
+
 bscp_usbd_handler_result_t bscp_usbd_handle_request(bscp_usbd_handle_t *handle,
 		usb_setuprequest_t *req) {
 	bscp_usbd_handler_result_t result = RESULT_NEXT_PARSER;
 	void *buf = NULL;
 	size_t size = 0;
 
-	// TODO, User handlers
+	for (int i = 0 ; i < USER_HANDLER_COUNT; i++ ) {
+		if (m_bscp_usbd_request_handlers[i]) {
+			result = m_bscp_usbd_request_handlers[i](handle, req, &buf, &size);
+			if (result != RESULT_NEXT_PARSER) break;
+		}
+	}
 
 	if (result == RESULT_NEXT_PARSER) {
 		result = bscp_usbd_handle_standard_request(handle, req, &buf, &size);
