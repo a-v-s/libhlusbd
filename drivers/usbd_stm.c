@@ -258,6 +258,16 @@ void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 		}
 #else
 
+	if (m_usbd_handle.ep_in[epnum & 0x7F].data_cnt == 0) {
+		if (m_usbd_handle.ep_in[epnum & 0x7F].data_size
+				>= m_usbd_handle.ep_in[epnum & 0x7F].ep_size)
+			m_usbd_handle.ep_in[epnum & 0x7F].data_cnt =
+					m_usbd_handle.ep_in[epnum & 0x7F].ep_size;
+		else
+			m_usbd_handle.ep_in[epnum & 0x7F].data_cnt =
+					m_usbd_handle.ep_in[epnum & 0x7F].data_size;
+	}
+
 	// Is this a Multi Part transfer?
 	if ((m_usbd_handle.ep_in[epnum & 0x7F].data_size
 			- m_usbd_handle.ep_in[epnum & 0x7F].data_cnt)
@@ -447,7 +457,6 @@ int usbd_stm32_ep_open(void *hpcd, uint8_t epnum, uint8_t epsize,
 	status = HAL_PCD_EP_Open(hpcd, epnum, epsize, eptype);
 	if (status)
 		return status;
-
 
 	// Prepare to receive data to the assigned buffer
 	if (!(epnum & 0x80))
