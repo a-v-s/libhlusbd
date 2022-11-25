@@ -218,37 +218,46 @@ void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 	bool setup = ((epnum & 0x7F) == 0x00);
 #ifdef USB_OTG_FS
 
+
+
 	if (setup) {
-		// It seems the OTG version handles the complete transfers for EP1+
-		// But for EP0 (setup) we need to handle multi-packet transfers like we
-		// would on the USBFSv1/USBFSv2 hardware
-
-		// First a quick and dirty copy paste solution, if the above turns out to be
-		// corrent, then make a neat solution
-
-		// Well... it doesn't work.
-
-
-		m_usbd_handle.ep_in[epnum & 0x7F].data_cnt += hpcd->IN_ep[0x7F & epnum].xfer_len;
-
-		if (m_usbd_handle.ep_in[epnum & 0x7F].data_size
-								> m_usbd_handle.ep_in[epnum & 0x7F].data_cnt) {
-				HAL_PCD_EP_Transmit(hpcd, epnum,
-						m_usbd_handle.ep_in[epnum & 0x7F].data_buffer
-								+ m_usbd_handle.ep_in[epnum & 0x7F].data_cnt,
-						m_usbd_handle.ep_in[epnum & 0x7F].data_size
-								- m_usbd_handle.ep_in[epnum & 0x7F].data_cnt);
-		} else {
-			// We need to test this. This probably needs to change:
-			// if NEED_ZLP, then send ZLP, and then we're supposed to be called again
-			// and only then we should stall. At least ST's middleware does it like that.
-			// And the OTG implementation is more sensitive to such details
-			// then the USBFS hardware. We need to test this with some specially prepared string descriptors.
-			if (!(m_usbd_handle.ep_in[epnum & 0x7F].data_size%m_usbd_handle.ep_in[epnum & 0x7F].ep_size ))	HAL_PCD_EP_Transmit(hpcd, epnum,NULL,0);
-			HAL_PCD_EP_SetStall(hpcd, 0x80);
-		}
 		HAL_PCD_EP_Receive(hpcd, 0x00, NULL, 0);
+		HAL_PCD_EP_SetStall(hpcd, 0x80);
 	}
+
+	// This below does not work at all, but the quick fix breaks the long strings again
+
+//	if (setup) {
+//		// It seems the OTG version handles the complete transfers for EP1+
+//		// But for EP0 (setup) we need to handle multi-packet transfers like we
+//		// would on the USBFSv1/USBFSv2 hardware
+//
+//		// First a quick and dirty copy paste solution, if the above turns out to be
+//		// corrent, then make a neat solution
+//
+//		// Well... it doesn't work.
+//
+//
+//		m_usbd_handle.ep_in[epnum & 0x7F].data_cnt += hpcd->IN_ep[0x7F & epnum].xfer_len;
+//
+//		if (m_usbd_handle.ep_in[epnum & 0x7F].data_size
+//								> m_usbd_handle.ep_in[epnum & 0x7F].data_cnt) {
+//				HAL_PCD_EP_Transmit(hpcd, epnum,
+//						m_usbd_handle.ep_in[epnum & 0x7F].data_buffer
+//								+ m_usbd_handle.ep_in[epnum & 0x7F].data_cnt,
+//						m_usbd_handle.ep_in[epnum & 0x7F].data_size
+//								- m_usbd_handle.ep_in[epnum & 0x7F].data_cnt);
+//		} else {
+//			// We need to test this. This probably needs to change:
+//			// if NEED_ZLP, then send ZLP, and then we're supposed to be called again
+//			// and only then we should stall. At least ST's middleware does it like that.
+//			// And the OTG implementation is more sensitive to such details
+//			// then the USBFS hardware. We need to test this with some specially prepared string descriptors.
+//			if (!(m_usbd_handle.ep_in[epnum & 0x7F].data_size%m_usbd_handle.ep_in[epnum & 0x7F].ep_size ))	HAL_PCD_EP_Transmit(hpcd, epnum,NULL,0);
+//			HAL_PCD_EP_SetStall(hpcd, 0x80);
+//		}
+//		HAL_PCD_EP_Receive(hpcd, 0x00, NULL, 0);
+//	}
 
 		if (hpcd->IN_ep[0x7F & epnum].xfer_count == m_usbd_handle.ep_in[epnum & 0x7F].data_size) {
 			if (m_usbd_handle.ep_in[0x7F & epnum].data_cb)
