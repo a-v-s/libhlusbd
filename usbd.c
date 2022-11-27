@@ -7,7 +7,7 @@
 
  MIT License
 
- Copyright (c) 2018, 2019, 2020 André van Schoubroeck
+ Copyright (c) 2018 - 2022 André van Schoubroeck <andre@blaatschaap.be>
 
  Permission is hereby granted, free of charge, to any person obtaining a copy
  of this software and associated documentation files (the "Software"), to deal
@@ -39,13 +39,10 @@
 #include "ConvertUTF/ConvertUTF.h"
 #endif
 
-#define USER_HANDLER_COUNT (4)
-static bscp_usbd_request_handler_f m_bscp_usbd_request_handlers[USER_HANDLER_COUNT] = {0};
-
-int bscp_usbd_request_handler_add(bscp_usbd_request_handler_f handler) {
-	for (int i = 0 ; i < USER_HANDLER_COUNT; i++ ) {
-		if (!m_bscp_usbd_request_handlers[i]) {
-			m_bscp_usbd_request_handlers[i] = handler;
+int bscp_usbd_request_handler_add(bscp_usbd_handle_t *handle, bscp_usbd_request_handler_f handler) {
+	for (int i = 0 ; i < USBD_REQUEST_HANDLER_COUNT; i++ ) {
+		if (!handle->request_handlers[i]) {
+			handle->request_handlers[i] = handler;
 			return 0;
 		}
 	}
@@ -416,9 +413,9 @@ bscp_usbd_handler_result_t bscp_usbd_handle_request(bscp_usbd_handle_t *handle,
 	void *buf = NULL;
 	size_t size = 0;
 
-	for (int i = 0 ; i < USER_HANDLER_COUNT; i++ ) {
-		if (m_bscp_usbd_request_handlers[i]) {
-			result = m_bscp_usbd_request_handlers[i](handle, req, &buf, &size);
+	for (int i = 0 ; i < USBD_REQUEST_HANDLER_COUNT; i++ ) {
+		if (handle->request_handlers[i]) {
+			result = handle->request_handlers[i](handle, req, &buf, &size);
 			if (result != RESULT_NEXT_PARSER) break;
 		}
 	}

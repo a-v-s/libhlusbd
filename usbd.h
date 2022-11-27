@@ -7,7 +7,7 @@ License:	MIT
 
 MIT License
 
-Copyright (c) 2018, 2019 André van Schoubroeck
+Copyright (c) 2018 - 2022 André van Schoubroeck <andre@blaatschaap.be>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -236,6 +236,6 @@ int bscp_usbd_ep_open(bscp_usbd_handle_t *handle, uint8_t epnum, uint8_t epsize,
 bscp_usbd_handler_result_t bscp_usbd_handle_request(bscp_usbd_handle_t *handle, usb_setuprequest_t *req);
 void bscp_usbd_demo_setup_descriptors(bscp_usbd_handle_t *handle);
 
-int bscp_usbd_request_handler_add(bscp_usbd_request_handler_f handler);
+int bscp_usbd_request_handler_add(bscp_usbd_handle_t *handle, bscp_usbd_request_handler_f handler);
 
 #endif /* USBD_H_ */

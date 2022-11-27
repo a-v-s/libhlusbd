@@ -1,13 +1,13 @@
 /*
 
  File: 		usb_descriptors.h
- Author:		André van Schoubroeck
+ Author:	André van Schoubroeck
  License:	MIT
 
 
  MIT License
 
- Copyright (c) 2018, 2019 André van Schoubroeck
+ Copyright (c) 2018 - 2022 André van Schoubroeck <andre@blaatschaap.be>
 
  Permission is hereby granted, free of charge, to any person obtaining a copy
  of this software and associated documentation files (the "Software"), to deal
