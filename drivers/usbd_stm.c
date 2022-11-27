@@ -221,8 +221,30 @@ void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 
 
 	if (setup) {
+
 		HAL_PCD_EP_Receive(hpcd, 0x00, NULL, 0);
 		HAL_PCD_EP_SetStall(hpcd, 0x80);
+
+		size_t size = m_usbd_handle.ep_in[epnum & 0x7F].data_size
+				- m_usbd_handle.ep_in[epnum & 0x7F].data_cnt;
+		if (size) {
+//			HAL_PCD_EP_Transmit(hpcd, epnum,
+//					m_usbd_handle.ep_in[epnum & 0x7F].data_buffer
+//							+ m_usbd_handle.ep_in[epnum & 0x7F].data_cnt,
+//					size);
+
+
+//			HAL_PCD_EP_Transmit(hpcd, epnum,
+//					NULL,0);
+		}
+
+
+
+
+
+
+
+
 	}
 
 	// This below does not work at all, but the quick fix breaks the long strings again
@@ -267,15 +289,15 @@ void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum) {
 		}
 #else
 
-	if (m_usbd_handle.ep_in[epnum & 0x7F].data_cnt == 0) {
-		if (m_usbd_handle.ep_in[epnum & 0x7F].data_size
-				>= m_usbd_handle.ep_in[epnum & 0x7F].ep_size)
-			m_usbd_handle.ep_in[epnum & 0x7F].data_cnt =
-					m_usbd_handle.ep_in[epnum & 0x7F].ep_size;
-		else
-			m_usbd_handle.ep_in[epnum & 0x7F].data_cnt =
-					m_usbd_handle.ep_in[epnum & 0x7F].data_size;
-	}
+//	if (m_usbd_handle.ep_in[epnum & 0x7F].data_cnt == 0) {
+//		if (m_usbd_handle.ep_in[epnum & 0x7F].data_size
+//				>= m_usbd_handle.ep_in[epnum & 0x7F].ep_size)
+//			m_usbd_handle.ep_in[epnum & 0x7F].data_cnt =
+//					m_usbd_handle.ep_in[epnum & 0x7F].ep_size;
+//		else
+//			m_usbd_handle.ep_in[epnum & 0x7F].data_cnt =
+//					m_usbd_handle.ep_in[epnum & 0x7F].data_size;
+//	}
 
 	// Is this a Multi Part transfer?
 	if ((m_usbd_handle.ep_in[epnum & 0x7F].data_size
@@ -415,9 +437,24 @@ void HAL_PCD_DisconnectCallback(PCD_HandleTypeDef *hpcd) {
 }
 
 int usbd_stm32_transmit(void *hpcd, uint8_t ep, void *data, size_t size) {
+
+
 	m_usbd_handle.ep_in[ep & 0x7F].data_buffer = data;
 	m_usbd_handle.ep_in[ep & 0x7F].data_size = size;
-	m_usbd_handle.ep_in[ep & 0x7F].data_cnt = 0;
+	//m_usbd_handle.ep_in[ep & 0x7F].data_cnt = 0;
+
+	if (m_usbd_handle.ep_in[ep & 0x7F].data_size <
+			m_usbd_handle.ep_in[ep & 0x7F].ep_size)
+		m_usbd_handle.ep_in[ep & 0x7F].data_cnt = m_usbd_handle.ep_in[ep & 0x7F].data_size;
+	else
+		m_usbd_handle.ep_in[ep & 0x7F].data_cnt = m_usbd_handle.ep_in[ep & 0x7F].ep_size;
+
+
+
+//	ep &= 0x7F;
+//	if (size > m_usbd_handle.ep_in[ep ].ep_size && (ep == 0) ) {
+//		size = m_usbd_handle.ep_in[ep ].ep_size;
+//	}
 	int result = HAL_PCD_EP_Transmit(hpcd, ep, data, size);
 	return result;
 }
