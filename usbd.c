@@ -440,15 +440,15 @@ int bscp_usbd_transmit(bscp_usbd_handle_t *handle, uint8_t ep, void *data,
 		size_t size) {
 	handle->ep_in[ep & 0x7F].data_buffer = data;
 	handle->ep_in[ep & 0x7F].data_size = size;
-	handle->ep_in[ep & 0x7F].data_cnt = 0;
+	//handle->ep_in[ep & 0x7F].data_cnt = 0;
 
-	/*
-	 if (handle->ep_in[ep & 0x7F].ep_size < size)
-	 handle->ep_in[ep & 0x7F].data_left = size
-	 - handle->ep_in[ep & 0x7F].ep_size;
-	 else
-	 handle->ep_in[ep & 0x7F].data_left = 0;
-	 */
+	if (handle->ep_in[ep & 0x7F].data_size> handle->ep_in[ep & 0x7F].ep_size) {
+		handle->ep_in[ep & 0x7F].data_cnt =handle->ep_in[ep & 0x7F].ep_size;
+	} else {
+		handle->ep_in[ep & 0x7F].data_cnt =handle->ep_in[ep & 0x7F].data_size;
+	}
+
+
 	return handle->driver.transmit(handle->driver.device_specific, ep, data,
 			size);
 }
