@@ -411,12 +411,16 @@ int usbd_stm32_transmit(void *hpcd, uint8_t ep, void *data, size_t size) {
 	m_usbd_handle.ep_in[ep & 0x7F].data_size = size;
 	//m_usbd_handle.ep_in[ep & 0x7F].data_cnt = 0;
 
-	if (m_usbd_handle.ep_in[ep & 0x7F].data_size <
-			m_usbd_handle.ep_in[ep & 0x7F].ep_size)
-		m_usbd_handle.ep_in[ep & 0x7F].data_cnt = m_usbd_handle.ep_in[ep & 0x7F].data_size;
-	else
-		m_usbd_handle.ep_in[ep & 0x7F].data_cnt = m_usbd_handle.ep_in[ep & 0x7F].ep_size;
 
+	// This seems not applicable??? Was this a bug or did the HAL API change?
+//	if (m_usbd_handle.ep_in[ep & 0x7F].data_size <
+//			m_usbd_handle.ep_in[ep & 0x7F].ep_size)
+//		m_usbd_handle.ep_in[ep & 0x7F].data_cnt = m_usbd_handle.ep_in[ep & 0x7F].data_size;
+//	else
+//		m_usbd_handle.ep_in[ep & 0x7F].data_cnt = m_usbd_handle.ep_in[ep & 0x7F].ep_size;
+//
+
+	m_usbd_handle.ep_in[ep & 0x7F].data_cnt = m_usbd_handle.ep_in[ep & 0x7F].data_size;
 
 
 //	ep &= 0x7F;
