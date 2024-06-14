@@ -48,5 +48,6 @@ SOFTWARE.
 #include <string.h>
 
 void* add_descriptor(bscp_usbd_handle_t *handle, size_t size);
+void* add_string_descriptor_utf16(bscp_usbd_handle_t *handle, uint16_t *utf16_string) ;
 
 #endif /* USBD_DESCRIPTORS_H_ */

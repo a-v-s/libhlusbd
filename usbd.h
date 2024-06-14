@@ -223,7 +223,7 @@ typedef struct {
 } bscp_usbd_handle_t;
 
 
-
+bscp_usbd_handle_t* usbd_init() ;
 
 int bscp_usbd_transmit(bscp_usbd_handle_t *handle, uint8_t ep, void *data, size_t size);
 int bscp_usbd_set_address(bscp_usbd_handle_t *handle, uint8_t address);
@@ -237,5 +237,12 @@ bscp_usbd_handler_result_t bscp_usbd_handle_request(bscp_usbd_handle_t *handle, 
 void bscp_usbd_demo_setup_descriptors(bscp_usbd_handle_t *handle);
 
 int bscp_usbd_request_handler_add(bscp_usbd_handle_t *handle, bscp_usbd_request_handler_f handler);
+
+void bscp_usbd_add_endpoint_in(bscp_usbd_handle_t *handle, uint8_t config,
+		uint8_t epnum, uint8_t eptype, uint16_t epsize, uint8_t epinterval,
+		bscp_usbd_transfer_cb_f cb) ;
+void bscp_usbd_add_endpoint_out(bscp_usbd_handle_t *handle, uint8_t config,
+		uint8_t epnum, uint8_t eptype, uint16_t epsize, uint8_t epinterval,
+		void *buffer, size_t size, bscp_usbd_transfer_cb_f cb);
 
 #endif /* USBD_H_ */
