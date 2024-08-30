@@ -42,14 +42,14 @@ typedef struct {
 } str8_t;
 
 #define REQUESTVALUE_MICROSOFT 0x20
-#define USBD_MSOS_DRIVER_WINUSB  (str8_t){'W', 'I', 'N', 'U' , 'S', 'B',  0 ,  0} // Recommended, native
-#define USBD_MSOS_DRIVER_LIBUSBK (str8_t){'L', 'I', 'B', 'U' , 'S', 'B', 'K',  0} // Recommended after WinUSB
-#define USBD_MSOS_DRIVER_LIBUSB0 (str8_t){'L', 'I', 'B', 'U' , 'S', 'B', '0',  0} // Old, not recommended
+#define USBD_MSOS_DRIVER_WINUSB  (str8_t){{'W', 'I', 'N', 'U' , 'S', 'B',  0 ,  0}} // Recommended, native
+#define USBD_MSOS_DRIVER_LIBUSBK (str8_t){{'L', 'I', 'B', 'U' , 'S', 'B', 'K',  0}} // Recommended after WinUSB
+#define USBD_MSOS_DRIVER_LIBUSB0 (str8_t){{'L', 'I', 'B', 'U' , 'S', 'B', '0',  0}} // Old, not recommended
 
 #define MS_OS_20_SET_HEADER_DESCRIPTOR	(0x00)
 #define MS_OS_20_FEATURE_COMPATIBLE_ID  (0x03)
 
-#define USBD_BOS_CAP_MICROSOFT_UUID  (guid_t ) { 0xDF, 0x60, 0xDD, 0xD8, 0x89, 0x45, 0xC7, 0x4C, 0x9C, 0xD2, 0x65, 0x9D, 0x9E, 0x64, 0x8A, 0x9F }
+#define USBD_BOS_CAP_MICROSOFT_UUID  (guid_t ) {{ 0xDF, 0x60, 0xDD, 0xD8, 0x89, 0x45, 0xC7, 0x4C, 0x9C, 0xD2, 0x65, 0x9D, 0x9E, 0x64, 0x8A, 0x9F }}
 #define NTDDI_WINBLUE (0x06030000)
 typedef struct {
 
