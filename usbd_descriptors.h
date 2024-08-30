@@ -1,6 +1,6 @@
 /*
 
-File: 		
+File: 	 	usbd_descriptors.h
 Author:		André van Schoubroeck
 License:	MIT
 
@@ -49,5 +49,6 @@ SOFTWARE.
 
 void* add_descriptor(bscp_usbd_handle_t *handle, size_t size);
 void* add_string_descriptor_utf16(bscp_usbd_handle_t *handle, uint16_t *utf16_string) ;
+void* add_string_descriptor_utf8(bscp_usbd_handle_t *handle, uint8_t *utf8_string) ;
 
 #endif /* USBD_DESCRIPTORS_H_ */
